@@ -1,0 +1,4 @@
+node_modules/@esbuild/darwin-arm64/
+node_modules/fsevents/
+.env
+*.log
