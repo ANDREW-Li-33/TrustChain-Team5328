@@ -1,7 +1,7 @@
 import './styles/App.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import LoginPage from './components/LoginPage';
-import OperatorDashboard from './components/OperatorDashboard';
+import LoginPage from './pages/Login';
+import OperatorDashboard from './pages/OperatorDashboard';
 
 function App() {
   return (
