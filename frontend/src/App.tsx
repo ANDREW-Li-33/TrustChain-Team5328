@@ -1,21 +1,17 @@
-import './styles/App.css';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/Login';
 import OperatorDashboard from './pages/OperatorDashboard';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/operator" element={<OperatorDashboard />} />
-        {/* placeholder routes for operator dashboard links */}
-        <Route path="/savingspipeline" element={<div>Savings Pipeline Page</div>} />
-        <Route path="/toolmanagement" element={<div>Tool Management Page</div>} />
-        <Route path="/revenuetransactions" element={<div>Revenue / Transactions</div>} />
-        <Route path="/creditportfolio" element={<div>Credit Portfolio</div>} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/operator" element={<OperatorDashboard />} />
+      <Route path="/jobs" element={<div>Jobs Page</div>} />
+      <Route path="/telemetry" element={<div>Telemetry Page</div>} />
+      <Route path="/tokens" element={<div>Tokens Page</div>} />
+      <Route path="/marketplace" element={<div>Marketplace Page</div>} />
+    </Routes>
   );
 }
 
