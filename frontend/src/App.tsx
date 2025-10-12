@@ -4,6 +4,7 @@ import OperatorDashboard from "./pages/OperatorDashboard";
 import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
+import JobsPage from "./pages/Jobs"
 
 function App() {
   return (
@@ -33,7 +34,7 @@ function App() {
         path="/jobs"
         element={
           <Protected>
-            <div>Jobs Page</div>
+            <JobsPage />
           </Protected>
         }
       />
