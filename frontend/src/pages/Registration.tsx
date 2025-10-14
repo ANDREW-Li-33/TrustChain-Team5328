@@ -9,6 +9,7 @@ import {
   Heading,
   Text,
   useColorModeValue,
+  Select,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -21,13 +22,27 @@ export default function RegistrationPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("");
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     try {
       await createUserWithEmailAndPassword(auth, email, password).then(
-        (obj) => {
+        async (obj) => {
           console.log(obj);
+
+          const dataToSend = {
+            firebaseUID: obj.user.uid,
+            email,
+            role: role,
+          };
+
+          const res = await fetch("http://localhost:5050/users/", {
+            method: "POST",
+            body: JSON.stringify(dataToSend),
+          });
+
+          console.log("res", res);
           nav("/");
         }
       );
@@ -45,7 +60,8 @@ export default function RegistrationPage() {
     >
       <Stack spacing={8} mx={"auto"} maxW={"lg"} py={12} px={6}>
         <Stack align={"center"}>
-          <Heading fontSize={"4xl"}>Sign up for an account</Heading>
+          <Heading fontSize={"3xl"}>Welcome to TrustChain CO2</Heading>
+          <Text fontSize={"xl"}>Transparency in Every Transaction</Text>
         </Stack>
         <Box
           rounded={"lg"}
@@ -73,6 +89,14 @@ export default function RegistrationPage() {
                   setPassword(e.target.value);
                 }}
               />
+            </FormControl>
+            <FormControl id="role">
+              <FormLabel>Role</FormLabel>
+              <Select placeholder="Select option">
+                <option value="user">User</option>
+                <option value="operator">Operator</option>
+                <option value="verifier">Verifier</option>
+              </Select>
             </FormControl>
             <Stack spacing={10}>
               <Stack

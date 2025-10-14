@@ -43,7 +43,8 @@ export default function LoginPage() {
     >
       <Stack spacing={8} mx={"auto"} maxW={"lg"} py={12} px={6}>
         <Stack align={"center"}>
-          <Heading fontSize={"4xl"}>Sign in to your account</Heading>
+          <Heading fontSize={"3xl"}>Welcome to TrustChain CO2</Heading>
+          <Text fontSize={"xl"}>Transparency in Every Transaction</Text>
         </Stack>
         <Box
           rounded={"lg"}

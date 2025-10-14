@@ -4,7 +4,7 @@ import OperatorDashboard from "./pages/OperatorDashboard";
 import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
-import JobsPage from "./pages/Jobs"
+import NavBar from "./components/NavBar";
 
 function App() {
   return (
@@ -13,11 +13,12 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegistrationPage />} />
 
-      {/* Protected Routes. Users can access these pages aftering being authenticated */}
+      {/* Protected Routes. Users can access these pages only after being authenticated */}
       <Route
         path="/"
         element={
           <Protected>
+            <NavBar />
             <HomePage />
           </Protected>
         }
@@ -26,6 +27,7 @@ function App() {
         path="/operator"
         element={
           <Protected>
+            <NavBar />
             <OperatorDashboard />
           </Protected>
         }
@@ -34,7 +36,8 @@ function App() {
         path="/jobs"
         element={
           <Protected>
-            <JobsPage />
+            <NavBar />
+            <div>Jobs Page</div>
           </Protected>
         }
       />
@@ -42,6 +45,7 @@ function App() {
         path="/telemetry"
         element={
           <Protected>
+            <NavBar />
             <div>Telemetry Page</div>
           </Protected>
         }
@@ -50,6 +54,7 @@ function App() {
         path="/tokens"
         element={
           <Protected>
+            <NavBar />
             <div>Tokens Page</div>
           </Protected>
         }
@@ -58,6 +63,7 @@ function App() {
         path="/marketplace"
         element={
           <Protected>
+            <NavBar />
             <div>Marketplace Page</div>
           </Protected>
         }
