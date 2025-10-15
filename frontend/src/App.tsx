@@ -4,6 +4,7 @@ import OperatorDashboard from "./pages/OperatorDashboard";
 import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
+import TelemetryAnalysis from "./pages/TelemetryAnalysis";
 import NavBar from "./components/NavBar";
 
 function App() {
@@ -45,8 +46,7 @@ function App() {
         path="/telemetry"
         element={
           <Protected>
-            <NavBar />
-            <div>Telemetry Page</div>
+            <TelemetryAnalysis />
           </Protected>
         }
       />
