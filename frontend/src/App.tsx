@@ -5,6 +5,7 @@ import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
 import JobsPage from "./pages/Jobs"
+import TelemetryAnalysis from "./pages/TelemetryAnalysis";
 
 function App() {
   return (
@@ -42,7 +43,7 @@ function App() {
         path="/telemetry"
         element={
           <Protected>
-            <div>Telemetry Page</div>
+            <TelemetryAnalysis />
           </Protected>
         }
       />
