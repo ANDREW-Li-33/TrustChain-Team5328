@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useContext } from "react";
+import { Context } from "../context/authContext";
 import {
   Box,
   Heading,
@@ -21,8 +22,20 @@ type Job = {
   dateCreated: string;
 };
 
+type UserRow = {
+  userID: number;
+  firebaseUID: string;
+  email?: string | null;
+};
+
 export default function JobsPage() {
-  const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5050";
+  const API =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    "http://localhost:5050";
+
+  const { user } = useContext<any>(Context);
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -30,19 +43,40 @@ export default function JobsPage() {
   const [status, setStatus] = useState("all");
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
-        const res = await fetch(`${API}/jobs`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setJobs(data);
+        const uRes = await fetch(`${API}/users`);
+        if (!uRes.ok) throw new Error(`users fetch failed (${uRes.status})`);
+        const users: UserRow[] = await uRes.json();
+
+        const me =
+          users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
+          users.find(
+            (u) =>
+              u.email &&
+              user.email &&
+              u.email.toLowerCase() === user.email.toLowerCase()
+          );
+
+        if (!me) throw new Error("No matching user in DB; did you register?");
+
+        const myOperatorID = me.userID;
+
+        const jRes = await fetch(`${API}/jobs/operator/${myOperatorID}`);
+        if (!jRes.ok) throw new Error(`jobs fetch failed (${jRes.status})`);
+        setJobs(await jRes.json());
       } catch (e: any) {
         setErr(e.message || "Failed to load jobs");
       } finally {
         setLoading(false);
       }
     })();
-  }, [API]);
+  }, [API, user]);
 
   const filtered = useMemo(
     () =>
@@ -91,7 +125,14 @@ export default function JobsPage() {
           <option value="Completed">Completed</option>
           <option value="Paused">Paused</option>
         </Select>
-        <Button onClick={() => { setQ(""); setStatus("all"); }}>Reset</Button>
+        <Button
+          onClick={() => {
+            setQ("");
+            setStatus("all");
+          }}
+        >
+          Reset
+        </Button>
       </HStack>
 
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -122,9 +163,16 @@ export default function JobsPage() {
                 {j.status}
               </Box>
             </HStack>
-            <Text><b>Operator:</b> {j.operatorID ?? "Unassigned"}</Text>
-            <Text><b>Tool:</b> {j.toolID}</Text>
-            <Text><b>Created:</b> {new Date(j.dateCreated).toLocaleString()}</Text>
+            <Text>
+              <b>Operator:</b> {j.operatorID ?? "Unassigned"}
+            </Text>
+            <Text>
+              <b>Tool:</b> {j.toolID}
+            </Text>
+            <Text>
+              <b>Created:</b>{" "}
+              {new Date(j.dateCreated).toLocaleString()}
+            </Text>
           </Box>
         ))}
       </SimpleGrid>
