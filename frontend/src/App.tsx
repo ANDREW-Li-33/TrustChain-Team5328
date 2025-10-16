@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/Login";
 import OperatorDashboard from "./pages/OperatorDashboard";
+import VerifierDashboard from "./pages/VerifierDashboard"
 import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
@@ -40,6 +41,14 @@ function App() {
           <Protected>
             <NavBar />
             <JobsPage/>
+          </Protected>
+        }
+      />
+      <Route
+        path="verifier"
+        element={
+          <Protected>
+            <VerifierDashboard />
           </Protected>
         }
       />
