@@ -1,18 +1,9 @@
 import React, { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../context/authContext";
 import {
-  Box,
-  Heading,
-  Text,
-  SimpleGrid,
-  HStack,
-  Input,
-  Select,
-  Button,
-  Spinner,
-  Alert,
-  AlertIcon,
+  Box, Heading, Text, SimpleGrid, HStack, Input, Select, Button, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, useDisclosure, useToast, VStack,
 } from "@chakra-ui/react";
+import { AddIcon } from "@chakra-ui/icons";
 
 type Job = {
   jobID: number;
@@ -35,49 +26,64 @@ export default function JobsPage() {
     "http://localhost:5050";
 
   const { user } = useContext<any>(Context);
-
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const toast = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
+  const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
 
-  useEffect(() => {
+  const [newJobToolID, setNewJobToolID] = useState("");
+  const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
+  const [creating, setCreating] = useState(false);
+
+
+  const fetchJobs = async () => {
     if (!user) {
       setLoading(false);
       return;
     }
 
-    (async () => {
-      try {
+    try {
+
+        // get users from backend endpoint
         const uRes = await fetch(`${API}/users`);
-        if (!uRes.ok) throw new Error(`users fetch failed (${uRes.status})`);
+        // if (!uRes.ok) throw new Error(`users fetch failed (${uRes.status})`);
         const users: UserRow[] = await uRes.json();
 
-        const me =
-          users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
-          users.find(
+        const me = users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
+        users.find(
             (u) =>
-              u.email &&
-              user.email &&
-              u.email.toLowerCase() === user.email.toLowerCase()
-          );
+            u.email &&
+            user.email &&
+            u.email.toLowerCase() === user.email.toLowerCase()
+        );
 
-        if (!me) throw new Error("No matching user in DB; did you register?");
+        if (!me) throw new Error("No matching user in the DB");
 
-        const myOperatorID = me.userID;
+        const operatorID = me.userID;
+        setMyOperatorID(operatorID);
 
-        const jRes = await fetch(`${API}/jobs/operator/${myOperatorID}`);
+        // get jobs from backend endpoint
+        const jRes = await fetch(`${API}/jobs/operator/${operatorID}`);
         if (!jRes.ok) throw new Error(`jobs fetch failed (${jRes.status})`);
+
         setJobs(await jRes.json());
-      } catch (e: any) {
+
+    } catch (e: any) {
         setErr(e.message || "Failed to load jobs");
-      } finally {
+    } finally {
         setLoading(false);
-      }
-    })();
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
   }, [API, user]);
 
+  // filtering
   const filtered = useMemo(
     () =>
       jobs.filter((j) => {
@@ -92,22 +98,96 @@ export default function JobsPage() {
     [jobs, q, status]
   );
 
-  if (loading) return <Spinner ml="6" mt="6" />;
 
-  if (err)
-    return (
-      <Alert status="error" m="6">
-        <AlertIcon />
-        {err}
-      </Alert>
-    );
+  const handleCreateJob = async () => {
+    if (!newJobToolID) {
+        // from chakra UI
+        toast({
+        title: "Validation Error",
+        description: "Please enter a Tool ID",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+        });
+        return;
+    }
+
+    if (!myOperatorID) {
+      toast({
+        title: "Error",
+        description: "Could not determine operator ID",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+        
+        const response = await fetch(`${API}/jobs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json",},
+            body: JSON.stringify({
+                operatorID: myOperatorID,
+                toolID: parseInt(newJobToolID),
+                status: newJobStatus,
+            }),
+        });
+
+        if (!response.ok) {
+        throw new Error("Failed to create job");
+        }
+
+        toast({
+            title: "Success",
+            description: "Job created successfully",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+
+        setNewJobToolID("");
+        setNewJobStatus("Active");
+        onClose();
+
+        await fetchJobs();
+
+    } catch (error: any) {
+
+        toast({
+        title: "Error",
+        description: error.message || "Failed to create job",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+        });
+
+    } finally {
+
+        setCreating(false);
+
+    }
+  };
+
+
 
   return (
     <Box p={6}>
-      <Heading size="lg" mb={4}>
-        Jobs
-      </Heading>
+      <HStack justify="space-between" mb={4}>
+        <Heading size="lg">Jobs</Heading>
+        <Button
+          leftIcon={<AddIcon />}
+          colorScheme="blue"
+          onClick={onOpen}
+        >
+          Create New Job
+        </Button>
+      </HStack>
 
+      {/* filtering */}
       <HStack gap={4} mb={4} align="center" flexWrap="wrap">
         <Input
           placeholder="Search jobID / operatorID / toolID"
@@ -135,6 +215,7 @@ export default function JobsPage() {
         </Button>
       </HStack>
 
+      {/* cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
         {filtered.map((j) => (
           <Box
@@ -178,6 +259,55 @@ export default function JobsPage() {
       </SimpleGrid>
 
       {!filtered.length && <Text mt={6}>No jobs match your filters.</Text>}
+
+      {/* create new job modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Create New Job</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel>Tool ID</FormLabel>
+                <Input
+                  type="number"
+                  placeholder="Enter Tool ID"
+                  value={newJobToolID}
+                  onChange={(e) => setNewJobToolID(e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Initial Status</FormLabel>
+                <Select
+                  value={newJobStatus}
+                  onChange={(e) => setNewJobStatus(e.target.value as "Active" | "Completed" | "Paused")}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Paused">Paused</option>
+                  <option value="Completed">Completed</option>
+                </Select>
+              </FormControl>
+
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleCreateJob}
+              isLoading={creating}
+              loadingText="Creating..."
+            >
+              Create Job
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
