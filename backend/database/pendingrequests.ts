@@ -38,6 +38,28 @@ export async function getRequests() {
     return data;
 }
 
+// used to update approved or denied requests as complete
+export async function updateRequestStatus(
+  requestID: number, 
+  newStatus: 'Pending' | 'On Hold' | 'Complete',
+  verificationTimestamp?: string
+) {
+  const updateData: any = { status: newStatus };
+  if (verificationTimestamp) {
+    updateData.verificationTimestamp = verificationTimestamp;
+  }
+  const { data, error } = await supabase
+    .from('PendingRequests')
+    .update(updateData)
+    .eq('requestID', requestID)
+    .select();
+  if (error) {
+    console.error('Error updating request status:', error);
+    return null;
+  }
+  return data;
+}
+
 export async function getRequestsByOperatorID(operatorID: number) {
     const { data, error } = await supabase.from('PendingRequests').select('*').eq('operatorID', operatorID);
     if (error) {

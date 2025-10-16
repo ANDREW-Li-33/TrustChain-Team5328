@@ -1,5 +1,5 @@
 import express from 'express';
-import { addRequest, getRequests, getOneRequest, getRequestsByOperatorID, deleteRequest } from '../database/pendingrequests';
+import { addRequest, getRequests, getOneRequest, getRequestsByOperatorID, deleteRequest, updateRequestStatus } from '../database/pendingrequests';
 
 const router = express.Router();
 
@@ -63,5 +63,32 @@ router.delete('/:id', async (req, res) => {
     res.status(200).json({ message: "Request deleted successfully", data: deletedRequest });
 });
 
+// for updating request status
+router.put('/:id/status', async (req, res) => {
+    try {
+      const { status, verificationTimestamp } = req.body;
+
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+      const updatedRequest = await updateRequestStatus(
+        Number(req.params.id), 
+        status,
+        verificationTimestamp
+      );
+      
+      if (!updatedRequest) {
+        return res.status(500).json({ error: "Failed to update request status" });
+      }
+      
+      res.status(200).json({ 
+        message: "Request status updated successfully", 
+        data: updatedRequest 
+      });
+    } catch (error) {
+      console.error("Error in PUT /pendingrequests/:id/status:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
 
 export default router;
