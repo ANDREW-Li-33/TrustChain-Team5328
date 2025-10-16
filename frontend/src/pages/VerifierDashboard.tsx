@@ -1,37 +1,7 @@
 import React, { useEffect, useState, useContext } from "react";
 import { Context } from "../context/authContext";
 import {
-  Box,
-  Container,
-  Heading,
-  Text,
-  SimpleGrid,
-  HStack,
-  VStack,
-  Input,
-  Select,
-  Button,
-  Spinner,
-  Alert,
-  AlertIcon,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
-  Badge,
-  useDisclosure,
-  useToast,
-  Divider,
-  Stat,
-  StatLabel,
-  StatNumber,
-  Card,
-  CardHeader,
-  CardBody,
-  CardFooter,
+  Box, Container, Heading, Text, SimpleGrid, HStack, VStack, Input, Select, Button, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, Badge, useDisclosure, useToast, Divider, Stat, StatLabel, StatNumber, Card, CardHeader, CardBody, CardFooter,
 } from "@chakra-ui/react";
 import { CheckIcon, CloseIcon } from "@chakra-ui/icons";
 
@@ -78,7 +48,7 @@ export default function VerifierDashboard() {
   const [modalLoading, setModalLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [statusFilter,   setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("Pending");
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -108,14 +78,14 @@ export default function VerifierDashboard() {
     onOpen();
 
     try {
-      // Fetch job details
+      // get job details
       const jobResponse = await fetch(`${API}/jobs/${request.jobID}`);
       if (jobResponse.ok) {
         const job = await jobResponse.json();
         setJobDetails(job);
       }
 
-      // Fetch telemetry data
+      // get telemetry data
       const telemetryResponse = await fetch(`${API}/telemetrydata/job/${request.jobID}`);
       if (telemetryResponse.ok) {
         const telemetry = await telemetryResponse.json();
@@ -139,14 +109,19 @@ export default function VerifierDashboard() {
 
     setActionLoading(true);
     try {
-      // Delete the pending request
-      const deleteResponse = await fetch(`${API}/pendingrequests/${selectedRequest.requestID}`, {
-        method: "DELETE",
+      const updateResponse = await fetch(`${API}/pendingrequests/${selectedRequest.requestID}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: "Complete",
+          verificationTimestamp: new Date().toISOString(),
+        }),
       });
 
-      if (!deleteResponse.ok) throw new Error("Failed to delete request");
+      if (!updateResponse.ok) throw new Error("Failed to update request status");
 
-      // Approve all telemetry data for this job
       for (const telemetry of telemetryData) {
         await fetch(`${API}/telemetrydata/${telemetry.entryID}/approve`, {
           method: "PUT",
@@ -155,7 +130,7 @@ export default function VerifierDashboard() {
 
       toast({
         title: "Request Approved",
-        description: "The request has been verified and approved",
+        description: "The request has been verified and marked as complete",
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -181,15 +156,22 @@ export default function VerifierDashboard() {
 
     setActionLoading(true);
     try {
-      const response = await fetch(`${API}/pendingrequests/${selectedRequest.requestID}`, {
-        method: "DELETE",
+      const response = await fetch(`${API}/pendingrequests/${selectedRequest.requestID}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: "Complete",
+          verificationTimestamp: new Date().toISOString(),
+        }),
       });
 
-      if (!response.ok) throw new Error("Failed to deny request");
+      if (!response.ok) throw new Error("Failed to update request status");
 
       toast({
         title: "Request Denied",
-        description: "The request has been rejected",
+        description: "The request has been rejected and marked as complete",
         status: "info",
         duration: 3000,
         isClosable: true,
@@ -222,6 +204,7 @@ export default function VerifierDashboard() {
 
   const pendingCount = requests.filter(r => r.status === "Pending").length;
   const onHoldCount = requests.filter(r => r.status === "On Hold").length;
+  const completeCount = requests.filter(r => r.status === "Complete").length;
 
   if (loading) {
     return (
@@ -247,8 +230,8 @@ export default function VerifierDashboard() {
       <VStack spacing={6} align="stretch">
         <Heading size="lg">Verifier Dashboard</Heading>
 
-        {/* Summary Stats */}
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
+        {/* summary */}
+        <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
           <Card>
             <CardBody>
               <Stat>
@@ -273,9 +256,17 @@ export default function VerifierDashboard() {
               </Stat>
             </CardBody>
           </Card>
+          <Card>
+            <CardBody>
+              <Stat>
+                <StatLabel>Completed</StatLabel>
+                <StatNumber color="green.500">{completeCount}</StatNumber>
+              </Stat>
+            </CardBody>
+          </Card>
         </SimpleGrid>
 
-        {/* Filters */}
+        {/* filters */}
         <HStack spacing={4} flexWrap="wrap">
           <Input
             placeholder="Search by Request ID, Job ID, or Operator ID"
@@ -291,22 +282,23 @@ export default function VerifierDashboard() {
             <option value="all">All Statuses</option>
             <option value="Pending">Pending</option>
             <option value="On Hold">On Hold</option>
+            <option value="Complete">Complete</option>
           </Select>
           <Button
             onClick={() => {
               setSearchQuery("");
-              setStatusFilter("all");
+              setStatusFilter("Pending");
             }}
           >
             Reset Filters
           </Button>
         </HStack>
 
-        {/* Request Cards */}
+        {/* cards */}
         {filteredRequests.length === 0 ? (
           <Alert status="info">
             <AlertIcon />
-            No pending requests found
+            No requests found matching your filters
           </Alert>
         ) : (
           <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -325,7 +317,10 @@ export default function VerifierDashboard() {
                   <HStack justify="space-between">
                     <Heading size="md">Request #{request.requestID}</Heading>
                     <Badge
-                      colorScheme={request.status === "Pending" ? "orange" : "yellow"}
+                      colorScheme={
+                        request.status === "Pending" ? "orange" :
+                        request.status === "Complete" ? "green" : "yellow"
+                      }
                     >
                       {request.status}
                     </Badge>
@@ -343,6 +338,12 @@ export default function VerifierDashboard() {
                       <strong>Submitted:</strong>{" "}
                       {new Date(request.requestTimestamp).toLocaleString()}
                     </Text>
+                    {request.verificationTimestamp && (
+                      <Text fontSize="sm" color="gray.600">
+                        <strong>Verified:</strong>{" "}
+                        {new Date(request.verificationTimestamp).toLocaleString()}
+                      </Text>
+                    )}
                   </VStack>
                 </CardBody>
                 <CardFooter pt={0}>
@@ -356,7 +357,7 @@ export default function VerifierDashboard() {
         )}
       </VStack>
 
-      {/* Request Detail Modal */}
+      {/* details modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent>
@@ -369,7 +370,6 @@ export default function VerifierDashboard() {
               <Spinner />
             ) : (
               <VStack spacing={4} align="stretch">
-                {/* Request Information */}
                 <Box>
                   <Heading size="sm" mb={2}>
                     Request Information
@@ -377,7 +377,10 @@ export default function VerifierDashboard() {
                   <VStack align="start" spacing={1}>
                     <Text>
                       <strong>Status:</strong>{" "}
-                      <Badge colorScheme={selectedRequest?.status === "Pending" ? "orange" : "yellow"}>
+                      <Badge colorScheme={
+                        selectedRequest?.status === "Pending" ? "orange" :
+                        selectedRequest?.status === "Complete" ? "green" : "yellow"
+                      }>
                         {selectedRequest?.status}
                       </Badge>
                     </Text>
@@ -386,6 +389,12 @@ export default function VerifierDashboard() {
                       {selectedRequest?.requestTimestamp && 
                         new Date(selectedRequest.requestTimestamp).toLocaleString()}
                     </Text>
+                    {selectedRequest?.verificationTimestamp && (
+                      <Text>
+                        <strong>Verified:</strong>{" "}
+                        {new Date(selectedRequest.verificationTimestamp).toLocaleString()}
+                      </Text>
+                    )}
                     <Text>
                       <strong>Job ID:</strong> {selectedRequest?.jobID}
                     </Text>
@@ -397,7 +406,7 @@ export default function VerifierDashboard() {
 
                 <Divider />
 
-                {/* Job Details */}
+                {/* job details */}
                 {jobDetails && (
                   <Box>
                     <Heading size="sm" mb={2}>
@@ -421,7 +430,7 @@ export default function VerifierDashboard() {
 
                 <Divider />
 
-                {/* Telemetry Data */}
+                {/* telemetry */}
                 <Box>
                   <Heading size="sm" mb={2}>
                     Telemetry Evidence ({telemetryData.length} records)
@@ -453,13 +462,24 @@ export default function VerifierDashboard() {
                   )}
                 </Box>
 
-                <Alert status="warning" borderRadius="md">
-                  <AlertIcon />
-                  <Text fontSize="sm">
-                    Review all evidence carefully before approving. This action will mint
-                    carbon credits for the operator.
-                  </Text>
-                </Alert>
+                {selectedRequest?.status !== "Complete" && (
+                  <Alert status="warning" borderRadius="md">
+                    <AlertIcon />
+                    <Text fontSize="sm">
+                      Review all evidence carefully before approving. This action will mark
+                      the request as complete and approve carbon credits for minting.
+                    </Text>
+                  </Alert>
+                )}
+
+                {selectedRequest?.status === "Complete" && (
+                  <Alert status="info" borderRadius="md">
+                    <AlertIcon />
+                    <Text fontSize="sm">
+                      This request has already been completed and cannot be modified.
+                    </Text>
+                  </Alert>
+                )}
               </VStack>
             )}
           </ModalBody>
@@ -472,24 +492,28 @@ export default function VerifierDashboard() {
               >
                 Close
               </Button>
-              <Button
-                colorScheme="red"
-                leftIcon={<CloseIcon />}
-                onClick={handleDenyRequest}
-                isLoading={actionLoading}
-                isDisabled={modalLoading}
-              >
-                Deny
-              </Button>
-              <Button
-                colorScheme="green"
-                leftIcon={<CheckIcon />}
-                onClick={handleApproveRequest}
-                isLoading={actionLoading}
-                isDisabled={modalLoading}
-              >
-                Approve
-              </Button>
+              {selectedRequest?.status !== "Complete" && (
+                <>
+                  <Button
+                    colorScheme="red"
+                    leftIcon={<CloseIcon />}
+                    onClick={handleDenyRequest}
+                    isLoading={actionLoading}
+                    isDisabled={modalLoading}
+                  >
+                    Deny
+                  </Button>
+                  <Button
+                    colorScheme="green"
+                    leftIcon={<CheckIcon />}
+                    onClick={handleApproveRequest}
+                    isLoading={actionLoading}
+                    isDisabled={modalLoading}
+                  >
+                    Approve
+                  </Button>
+                </>
+              )}
             </HStack>
           </ModalFooter>
         </ModalContent>
