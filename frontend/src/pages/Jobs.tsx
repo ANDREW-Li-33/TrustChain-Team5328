@@ -224,6 +224,8 @@ export default function JobsPage() {
             borderColor="gray.200"
             rounded="lg"
             p={4}
+            as="a"
+            href={`/telemetry/${j.jobID}`}
           >
             <HStack justify="space-between" mb={2}>
               <Heading size="md">Job #{j.jobID}</Heading>

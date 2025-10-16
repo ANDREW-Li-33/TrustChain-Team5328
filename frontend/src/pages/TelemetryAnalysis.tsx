@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Box,
   Container,
@@ -52,12 +53,18 @@ export default function TelemetryAnalysis() {
   const [telemetryData, setTelemetryData] = useState<TelemetryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedJob, setSelectedJob] = useState('1');
+  const params = useParams();
+  const [selectedJob, setSelectedJob] = useState<string>('1');
 
   const bgColor = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
 
   const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5050';
+
+  useEffect(() => {
+    const jid = (params as any)?.jobId;
+    if (jid) setSelectedJob(String(jid));
+  }, [params]);
 
   useEffect(() => {
     fetchTelemetryData();

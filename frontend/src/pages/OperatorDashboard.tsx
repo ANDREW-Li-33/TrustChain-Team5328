@@ -21,7 +21,7 @@ import {
   
     return (
       <Container maxW="container.xl" py={8}>
-        <Heading mb={8} textAlign="center">
+        <Heading mb={8} textAlign="center" as={Link} to="/jobs" _hover={{ textDecoration: 'underline' }}>
           Operator Dashboard
         </Heading>
         

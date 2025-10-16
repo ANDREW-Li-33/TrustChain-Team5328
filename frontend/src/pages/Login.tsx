@@ -15,6 +15,8 @@ import { useState } from "react";
 import { app } from "../firebase/firebase";
 import { Link, useNavigate } from "react-router-dom";
 
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL || "http://localhost:5050";
+
 export default function LoginPage() {
   const auth = getAuth(app);
   const nav = useNavigate();
@@ -25,9 +27,19 @@ export default function LoginPage() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     try {
-      await signInWithEmailAndPassword(auth, email, password).then((obj) => {
-        console.log(obj);
-        nav("/");
+      await signInWithEmailAndPassword(auth, email, password).then(async (obj) => {
+        const firebaseUID = obj.user?.uid;
+        try {
+          const res = await fetch(`${API_BASE}/users`);
+          const users = await res.json();
+          const me = users.find((u: any) => String(u.firebaseUID) === String(firebaseUID)) || users.find((u: any) => u.email && obj.user?.email && u.email.toLowerCase() === obj.user.email.toLowerCase());
+          const role = me?.role?.toLowerCase?.();
+          if (role === "operator") nav("/jobs");
+          else if (role === "verifier") nav("/telemetry");
+          else nav("/operator");
+        } catch {
+          nav("/");
+        }
       });
     } catch (e) {
       console.log(e);

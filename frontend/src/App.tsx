@@ -61,6 +61,14 @@ function App() {
         }
       />
       <Route
+        path="/telemetry/:jobId"
+        element={
+          <Protected>
+            <TelemetryAnalysis />
+          </Protected>
+        }
+      />
+      <Route
         path="/tokens"
         element={
           <Protected>
