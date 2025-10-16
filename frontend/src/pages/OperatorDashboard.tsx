@@ -13,7 +13,7 @@ import {
     const borderColor = useColorModeValue('gray.200', 'gray.600');
   
     const dashboardItems = [
-      { title: 'Savings Pipeline Page', link: '/savingspipeline', description: 'submit emission reductions for verification' },
+      { title: 'Active Jobs Page', link: '/jobs', description: 'View all of your currently active jobs' },
       { title: 'Tool Management Page', link: '/toolmanagement', description: 'View and add tools' },
       { title: 'Revenue / Transactions', link: '/revenuetransactions', description: 'view revenue and transaction history'},
       { title: 'Credit Portfolio', link: '/creditportfolio', description: 'view minted credits'},

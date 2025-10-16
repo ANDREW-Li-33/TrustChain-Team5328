@@ -6,6 +6,7 @@ import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
 import TelemetryAnalysis from "./pages/TelemetryAnalysis";
 import NavBar from "./components/NavBar";
+import JobsPage from "./pages/Jobs";
 
 function App() {
   return (
@@ -38,7 +39,7 @@ function App() {
         element={
           <Protected>
             <NavBar />
-            <div>Jobs Page</div>
+            <JobsPage/>
           </Protected>
         }
       />
