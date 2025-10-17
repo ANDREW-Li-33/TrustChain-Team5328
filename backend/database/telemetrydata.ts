@@ -37,7 +37,7 @@ export async function getTelemetryData() {
 }
 
 export async function getTelemetryDataByJobID(jobID: number) {
-    const { data, error } = await supabase.from('TelemetryData').select('*').eq('jobID', jobID);
+    const { data, error } = await supabase.from('TelemetryData').select(`*, Jobs ( jobTitle )`).eq('jobID', jobID);
     if (error) {
         console.error('Error fetching telemetry data by job ID:', error);
         return null;

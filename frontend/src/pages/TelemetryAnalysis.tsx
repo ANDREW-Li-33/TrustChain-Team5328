@@ -17,7 +17,19 @@ import {
   Alert,
   AlertIcon,
   Spinner,
-  Center
+  Center,
+  useDisclosure,
+  useToast,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  Input
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -51,10 +63,15 @@ interface AggregateData {
 export default function TelemetryAnalysis() {
   const [aggregateData, setAggregateData] = useState<AggregateData | null>(null);
   const [telemetryData, setTelemetryData] = useState<TelemetryData[]>([]);
+  const [jobName, setJobName] = useState<string>(''); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const params = useParams();
   const [selectedJob, setSelectedJob] = useState<string>('1');
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const toast = useToast();
+  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
   const bgColor = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -75,21 +92,21 @@ export default function TelemetryAnalysis() {
       setLoading(true);
       setError(null);
 
-      // NOTE: Backend exposes /telemetrydata routes (no /api prefix)
-      // 1) Fetch raw telemetry rows for the selected job
       const telemetryResponse = await fetch(`${API_BASE}/telemetrydata/job/${selectedJob}`);
       if (telemetryResponse.ok) {
         const rows = await telemetryResponse.json();
         // Map backend rows -> UI shape
+
+        if (rows.length > 0 && rows[0].Jobs?.jobTitle) {
+          setJobName(rows[0].Jobs.jobTitle);
+        }
         const mapped = (rows || []).map((r: any) => ({
-          timestamp: r.timeUploaded,
+          timestamp: r.metadata?.timestamp || r.timeUploaded,
           payload_json: r.metadata?.measurements,
         }));
         setTelemetryData(mapped);
       }
 
-      // 2) (Optional) If you later add an aggregate endpoint, set it here.
-      // For now, clear aggregate to avoid stale UI.
       setAggregateData(null);
 
     } catch (err) {
@@ -110,30 +127,83 @@ export default function TelemetryAnalysis() {
     }
   };
 
+  const handleUpload = async () => {
+  if (!file) {
+    toast({
+      title: "No file selected",
+      description: "Please select a JSON file to upload.",
+      status: "warning",
+      duration: 3000,
+      isClosable: true,
+    });
+    return;
+  }
+
+  setUploading(true);
+
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+
+    const res = await fetch(`${API_BASE}/telemetrydata`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jobID: Number(selectedJob),
+        Approved: false,
+        metadata: parsed,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Upload failed (${res.status})`);
+    }
+
+    toast({
+      title: "Telemetry data added",
+      description: "The file was uploaded successfully.",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+
+    setFile(null);
+    onClose();
+    await fetchTelemetryData(); // refresh chart
+  } catch (err: any) {
+    console.error("Upload error:", err);
+    toast({
+      title: "Upload failed",
+      description: err.message || "Unable to add telemetry data.",
+      status: "error",
+      duration: 4000,
+      isClosable: true,
+    });
+  } finally {
+    setUploading(false);
+  }
+};
+
+
   const processChartData = () => {
     if (!telemetryData.length) return [];
 
-    // Group data by hour for better visualization
-    const hourlyData = telemetryData.reduce((acc, record) => {
-      const hour = new Date(record.timestamp).getHours();
-      if (!acc[hour]) {
-        acc[hour] = { hour, power_kw: 0, flaring_m3: 0, count: 0 };
-      }
-      const payload = record.payload_json as any;
-      if (payload) {
-        acc[hour].power_kw += payload.power_kw || 0;
-        acc[hour].flaring_m3 += payload.flaring_m3 || 0;
-      }
-      acc[hour].count += 1;
-      return acc;
-    }, {} as any);
+    const sorted = [...telemetryData].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
 
-    return Object.values(hourlyData).map((data: any) => ({
-      hour: `${data.hour}:00`,
-      power_kw: Math.round((data.power_kw / data.count) * 100) / 100,
-      flaring_m3: Math.round((data.flaring_m3 / data.count) * 100) / 100
+    return sorted.map((record) => ({
+      timestamp: new Date(record.timestamp).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }),
+      power_kw: record.payload_json?.power_kw ?? 0,
+      flaring_m3: record.payload_json?.flaring_m3 ?? 0,
     }));
   };
+
+
+
 
   if (loading) {
     return (
@@ -230,7 +300,7 @@ export default function TelemetryAnalysis() {
         {/* Charts */}
         {telemetryData.length > 0 && (
           <Box>
-            <Heading size="md" mb={4}>Real-time Telemetry Data</Heading>
+            <Heading size="md" mb={4}>Real-time Telemetry Data {jobName ? `for ${jobName}` : `for Job ${selectedJob}`} </Heading>
             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
               {/* Power Consumption Chart */}
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
@@ -238,7 +308,7 @@ export default function TelemetryAnalysis() {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="hour" />
+                    <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
                     <Line type="monotone" dataKey="power_kw" stroke="#3182ce" strokeWidth={2} />
@@ -252,7 +322,7 @@ export default function TelemetryAnalysis() {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="hour" />
+                    <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
                     <Bar dataKey="flaring_m3" fill="#e53e3e" />
@@ -289,7 +359,41 @@ export default function TelemetryAnalysis() {
           <Button onClick={fetchTelemetryData} colorScheme="blue">
             Refresh Data
           </Button>
+          <Button colorScheme="green" onClick={onOpen}>
+            Add Data
+          </Button>
         </HStack>
+        <Modal isOpen={isOpen} onClose={onClose} size="md">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Upload Telemetry JSON</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <FormControl>
+                <FormLabel>Select JSON File</FormLabel>
+                <Input
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
+              </FormControl>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="green"
+                onClick={handleUpload}
+                isLoading={uploading}
+                loadingText="Uploading..."
+              >
+                Upload
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
       </VStack>
     </Container>
   );
