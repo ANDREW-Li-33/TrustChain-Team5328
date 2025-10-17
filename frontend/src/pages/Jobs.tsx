@@ -37,6 +37,7 @@ export default function JobsPage() {
   const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
 
   const [newJobToolID, setNewJobToolID] = useState("");
+  const [newJobTitle, setNewJobTitle] = useState("");
   const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
   const [creating, setCreating] = useState(false);
 
@@ -102,10 +103,20 @@ export default function JobsPage() {
 
   const handleCreateJob = async () => {
     if (!newJobToolID) {
-        // from chakra UI
         toast({
         title: "Validation Error",
         description: "Please enter a Tool ID",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+        });
+        return;
+    }
+
+    if (!newJobTitle) {
+        toast({
+        title: "Validation Error",
+        description: "Please enter a Job Title",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -135,6 +146,7 @@ export default function JobsPage() {
                 operatorID: myOperatorID,
                 toolID: parseInt(newJobToolID),
                 status: newJobStatus,
+                jobTitle: newJobTitle,
             }),
         });
 
@@ -151,6 +163,7 @@ export default function JobsPage() {
         });
 
         setNewJobToolID("");
+        setNewJobTitle("");
         setNewJobStatus("Active");
         onClose();
 
@@ -247,6 +260,9 @@ export default function JobsPage() {
                 {j.status}
               </Box>
             </HStack>
+            <Text mb={2} fontWeight="bold" color="blue.600">
+              {j.jobTitle}
+            </Text>
             <Text>
               <b>Operator:</b> {j.operatorID ?? "Unassigned"}
             </Text>
@@ -271,6 +287,16 @@ export default function JobsPage() {
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel>Job Title</FormLabel>
+                <Input
+                  type="text"
+                  placeholder="Enter Job Title"
+                  value={newJobTitle}
+                  onChange={(e) => setNewJobTitle(e.target.value)}
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Tool ID</FormLabel>
                 <Input
