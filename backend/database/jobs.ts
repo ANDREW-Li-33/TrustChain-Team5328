@@ -5,6 +5,7 @@ export async function addJob(job: {
   toolID: number;
   status: 'Active' | 'Completed' | 'Paused';
   dateCreated?: string;
+  jobTitle?: string;
 }) {
   const { data, error } = await supabase
     .from('Jobs')
@@ -14,6 +15,7 @@ export async function addJob(job: {
         toolID: job.toolID,
         status: job.status || 'Active',
         dateCreated: job.dateCreated || new Date().toISOString(), // defaults to current time
+        jobTitle: job.jobTitle || 'Untitled Job',
       },
     ])
     .select(); // return the inserted row(s)

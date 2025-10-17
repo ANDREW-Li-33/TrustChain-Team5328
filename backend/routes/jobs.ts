@@ -5,10 +5,10 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { operatorID, toolID, status, dateCreated } = req.body;
+        const { operatorID, toolID, status, dateCreated, jobTitle } = req.body;
 
         // Basic validation
-        if (!operatorID || !toolID || !status) {
+        if (!operatorID || !toolID || !status || !jobTitle) {
          return res.status(400).json({ error: "Missing required fields, error 1 in routes/jobs.ts" });
         }
 
@@ -17,6 +17,7 @@ router.post('/', async (req, res) => {
             toolID,
             status,
             dateCreated,
+            jobTitle,
         });
 
         if (!newJob) {

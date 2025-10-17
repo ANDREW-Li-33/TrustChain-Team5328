@@ -1,7 +1,7 @@
 import { supabase } from '../supabaseClient.js';
 
 export async function addUser(user: {
-  firebaseUID: number;
+  firebaseUID: string;
   email: string;
   role: 'Operator' | 'Buyer' | 'Admin' | 'Verifier';
   dateJoined?: string;

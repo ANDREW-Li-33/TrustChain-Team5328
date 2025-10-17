@@ -39,6 +39,9 @@ export default function RegistrationPage() {
 
           const res = await fetch("http://localhost:5050/users/", {
             method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
             body: JSON.stringify(dataToSend),
           });
 
@@ -92,10 +95,12 @@ export default function RegistrationPage() {
             </FormControl>
             <FormControl id="role">
               <FormLabel>Role</FormLabel>
-              <Select placeholder="Select option">
-                <option value="user">User</option>
-                <option value="operator">Operator</option>
-                <option value="verifier">Verifier</option>
+              <Select placeholder="Select option"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
+                <option value="Operator">Operator</option>
+                <option value="Verifier">Verifier</option>
               </Select>
             </FormControl>
             <Stack spacing={10}>

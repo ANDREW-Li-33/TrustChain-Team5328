@@ -11,6 +11,7 @@ type Job = {
   toolID: number;
   status: string;
   dateCreated: string;
+  jobTitle: string;
 };
 
 type UserRow = {
