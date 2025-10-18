@@ -1,7 +1,26 @@
-import React, { useEffect, useMemo, useState, useContext } from "react";
+import { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../context/authContext";
 import {
-  Box, Heading, Text, SimpleGrid, HStack, Input, Select, Button, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, useDisclosure, useToast, VStack,
+  Box,
+  Heading,
+  Text,
+  SimpleGrid,
+  HStack,
+  Input,
+  Select,
+  Button,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  FormControl,
+  FormLabel,
+  useDisclosure,
+  useToast,
+  VStack,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
 
@@ -38,9 +57,10 @@ export default function JobsPage() {
 
   const [newJobToolID, setNewJobToolID] = useState("");
   const [newJobTitle, setNewJobTitle] = useState("");
-  const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
+  const [newJobStatus, setNewJobStatus] = useState<
+    "Active" | "Completed" | "Paused"
+  >("Active");
   const [creating, setCreating] = useState(false);
-
 
   const fetchJobs = async () => {
     if (!user) {
@@ -49,35 +69,34 @@ export default function JobsPage() {
     }
 
     try {
+      // get users from backend endpoint
+      const uRes = await fetch(`${API}/users`);
+      // if (!uRes.ok) throw new Error(`users fetch failed (${uRes.status})`);
+      const users: UserRow[] = await uRes.json();
 
-        // get users from backend endpoint
-        const uRes = await fetch(`${API}/users`);
-        // if (!uRes.ok) throw new Error(`users fetch failed (${uRes.status})`);
-        const users: UserRow[] = await uRes.json();
-
-        const me = users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
+      const me =
+        users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
         users.find(
-            (u) =>
+          (u) =>
             u.email &&
             user.email &&
             u.email.toLowerCase() === user.email.toLowerCase()
         );
 
-        if (!me) throw new Error("No matching user in the DB");
+      if (!me) throw new Error("No matching user in the DB");
 
-        const operatorID = me.userID;
-        setMyOperatorID(operatorID);
+      const operatorID = me.userID;
+      setMyOperatorID(operatorID);
 
-        // get jobs from backend endpoint
-        const jRes = await fetch(`${API}/jobs/operator/${operatorID}`);
-        if (!jRes.ok) throw new Error(`jobs fetch failed (${jRes.status})`);
+      // get jobs from backend endpoint
+      const jRes = await fetch(`${API}/jobs/operator/${operatorID}`);
+      if (!jRes.ok) throw new Error(`jobs fetch failed (${jRes.status})`);
 
-        setJobs(await jRes.json());
-
+      setJobs(await jRes.json());
     } catch (e: any) {
-        setErr(e.message || "Failed to load jobs");
+      setErr(e.message || "Failed to load jobs");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -100,28 +119,27 @@ export default function JobsPage() {
     [jobs, q, status]
   );
 
-
   const handleCreateJob = async () => {
     if (!newJobToolID) {
-        toast({
+      toast({
         title: "Validation Error",
         description: "Please enter a Tool ID",
         status: "error",
         duration: 3000,
         isClosable: true,
-        });
-        return;
+      });
+      return;
     }
 
     if (!newJobTitle) {
-        toast({
+      toast({
         title: "Validation Error",
         description: "Please enter a Job Title",
         status: "error",
         duration: 3000,
         isClosable: true,
-        });
-        return;
+      });
+      return;
     }
 
     if (!myOperatorID) {
@@ -138,65 +156,53 @@ export default function JobsPage() {
     setCreating(true);
 
     try {
-        
-        const response = await fetch(`${API}/jobs`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json",},
-            body: JSON.stringify({
-                operatorID: myOperatorID,
-                toolID: parseInt(newJobToolID),
-                status: newJobStatus,
-                jobTitle: newJobTitle,
-            }),
-        });
+      const response = await fetch(`${API}/jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operatorID: myOperatorID,
+          toolID: parseInt(newJobToolID),
+          status: newJobStatus,
+          jobTitle: newJobTitle,
+        }),
+      });
 
-        if (!response.ok) {
+      if (!response.ok) {
         throw new Error("Failed to create job");
-        }
+      }
 
-        toast({
-            title: "Success",
-            description: "Job created successfully",
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
+      toast({
+        title: "Success",
+        description: "Job created successfully",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
 
-        setNewJobToolID("");
-        setNewJobTitle("");
-        setNewJobStatus("Active");
-        onClose();
+      setNewJobToolID("");
+      setNewJobTitle("");
+      setNewJobStatus("Active");
+      onClose();
 
-        await fetchJobs();
-
+      await fetchJobs();
     } catch (error: any) {
-
-        toast({
+      toast({
         title: "Error",
         description: error.message || "Failed to create job",
         status: "error",
         duration: 3000,
         isClosable: true,
-        });
-
+      });
     } finally {
-
-        setCreating(false);
-
+      setCreating(false);
     }
   };
-
-
 
   return (
     <Box p={6}>
       <HStack justify="space-between" mb={4}>
         <Heading size="lg">Jobs</Heading>
-        <Button
-          leftIcon={<AddIcon />}
-          colorScheme="blue"
-          onClick={onOpen}
-        >
+        <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={onOpen}>
           Create New Job
         </Button>
       </HStack>
@@ -259,6 +265,11 @@ export default function JobsPage() {
               >
                 {j.status}
               </Box>
+              {j.status === "Completed" ? (
+                <Button>Convert Credits</Button>
+              ) : (
+                <></>
+              )}
             </HStack>
             <Text mb={2} fontWeight="bold" color="blue.600">
               {j.jobTitle}
@@ -270,8 +281,7 @@ export default function JobsPage() {
               <b>Tool:</b> {j.toolID}
             </Text>
             <Text>
-              <b>Created:</b>{" "}
-              {new Date(j.dateCreated).toLocaleString()}
+              <b>Created:</b> {new Date(j.dateCreated).toLocaleString()}
             </Text>
           </Box>
         ))}
@@ -311,14 +321,17 @@ export default function JobsPage() {
                 <FormLabel>Initial Status</FormLabel>
                 <Select
                   value={newJobStatus}
-                  onChange={(e) => setNewJobStatus(e.target.value as "Active" | "Completed" | "Paused")}
+                  onChange={(e) =>
+                    setNewJobStatus(
+                      e.target.value as "Active" | "Completed" | "Paused"
+                    )
+                  }
                 >
                   <option value="Active">Active</option>
                   <option value="Paused">Paused</option>
                   <option value="Completed">Completed</option>
                 </Select>
               </FormControl>
-
             </VStack>
           </ModalBody>
 
