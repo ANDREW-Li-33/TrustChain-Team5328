@@ -62,6 +62,7 @@ export async function updateJobStatus(jobID: number, newStatus: 'Active' | 'Comp
         console.error('Error updating job status:', error);
         return null;
     }
+    return data;
 }
 
 async function testConnection() {

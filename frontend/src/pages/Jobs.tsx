@@ -265,11 +265,6 @@ export default function JobsPage() {
               >
                 {j.status}
               </Box>
-              {j.status === "Completed" ? (
-                <Button>Convert Credits</Button>
-              ) : (
-                <></>
-              )}
             </HStack>
             <Text mb={2} fontWeight="bold" color="blue.600">
               {j.jobTitle}

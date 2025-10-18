@@ -69,6 +69,15 @@ export async function getRequestsByOperatorID(operatorID: number) {
     return data;
 }
 
+export async function getRequestByJobID(jobID: number) {
+    const { data, error } = await supabase.from('PendingRequests').select('*').eq('jobID', jobID);
+    if (error) {
+        console.error('Error fetching requests by job ID:', error);
+        return null;
+    }
+    return data;
+}
+
 export async function getOneRequest(requestID: number) {
     const { data, error } = await supabase.from('PendingRequests').select('*').eq('requestID', requestID).single();
     if (error) {

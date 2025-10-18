@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { Context } from '../context/authContext';
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -60,6 +61,12 @@ interface AggregateData {
   aggregate_hash: string;
 }
 
+type UserRow = {
+  userID: number;
+  firebaseUID: string;
+  email?: string | null;
+};
+
 export default function TelemetryAnalysis() {
   const [aggregateData, setAggregateData] = useState<AggregateData | null>(null);
   const [telemetryData, setTelemetryData] = useState<TelemetryData[]>([]);
@@ -67,11 +74,16 @@ export default function TelemetryAnalysis() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const params = useParams();
-  const [selectedJob, setSelectedJob] = useState<string>('1');
+  const [selectedJob, setSelectedJob] = useState<string | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [jobStatus, setJobStatus] = useState<'Active' | 'Completed' | 'Paused'>('Active');
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const { user } = useContext<any>(Context);
 
   const bgColor = useColorModeValue('white', 'gray.700');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -84,7 +96,10 @@ export default function TelemetryAnalysis() {
   }, [params]);
 
   useEffect(() => {
-    fetchTelemetryData();
+    if (selectedJob) {
+      fetchTelemetryData();
+      checkPendingRequests();
+    }
   }, [selectedJob]);
 
   const fetchTelemetryData = async () => {
@@ -93,13 +108,16 @@ export default function TelemetryAnalysis() {
       setError(null);
 
       const telemetryResponse = await fetch(`${API_BASE}/telemetrydata/job/${selectedJob}`);
+      console.log('Selected Job ID:', selectedJob);
+      const jobResponse = await fetch(`${API_BASE}/jobs/${selectedJob}`);
+      if (!jobResponse.ok) {
+        throw new Error('Failed to fetch job details, error 1 in TelemetryAnalysis');
+      }
+      const job = await jobResponse.json();
+      setJobName(job.jobTitle || "Error fetching Job Title");
+      setJobStatus(job.status || "Error fetching Job Status");
       if (telemetryResponse.ok) {
         const rows = await telemetryResponse.json();
-        // Map backend rows -> UI shape
-
-        if (rows.length > 0 && rows[0].Jobs?.jobTitle) {
-          setJobName(rows[0].Jobs.jobTitle);
-        }
         const mapped = (rows || []).map((r: any) => ({
           timestamp: r.metadata?.timestamp || r.timeUploaded,
           payload_json: r.metadata?.measurements,
@@ -117,6 +135,59 @@ export default function TelemetryAnalysis() {
     }
   };
 
+  const handleResumeJob = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/jobs/${selectedJob}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Active" }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      toast({
+        title: "Job resumed",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      setJobStatus("Active");
+    } catch (err) {
+      console.error("Resume job error:", err);
+      toast({
+        title: "Error resuming job",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleCompleteJob = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/jobs/${selectedJob}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Completed" }),
+      });
+      if (!res.ok) throw new Error("Failed to mark job complete");
+      toast({
+        title: "Job marked as completed",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      setJobStatus("Completed");
+      setIsConfirmOpen(false);
+    } catch (err) {
+      console.error("Complete job error:", err);
+      toast({
+        title: "Error completing job",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
   const requestCarbonCredits = async () => {
     try {
       // This would trigger the carbon credits request process
@@ -126,6 +197,64 @@ export default function TelemetryAnalysis() {
       console.error('Error requesting carbon credits:', err);
     }
   };
+
+  const checkPendingRequests = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/pendingrequests/job/${selectedJob}`);
+      if (!res.ok) {
+        setHasPendingRequest(false);
+        return;
+      }
+      const requests = await res.json();
+      setHasPendingRequest(requests.length > 0);
+    } catch (err) {
+      console.log('Error checking pending requests:', err);
+      setHasPendingRequest(true); // assume true on error
+    }
+  }
+
+  const handleVerificationRequest = async () => {
+    try {
+      if (!user) {
+        toast({
+          title: "Not logged in",
+          description: "Please log in to request verification.",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+      const uRes = await fetch(`${API_BASE}/users`);
+      const users: UserRow[] = await uRes.json();
+      const me = users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
+        users.find(
+          (u) =>
+            u.email &&
+            user.email &&
+            u.email.toLowerCase() === user.email.toLowerCase()
+        );
+      if (!me) throw new Error("No matching user in the DB");
+      const operatorID = me.userID;
+
+
+      const res = await fetch(`${API_BASE}/pendingrequests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operatorID, jobID: Number(selectedJob), status: "Pending" }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed (${res.status})`);
+      }
+      console.log('Verification request sent for job:', selectedJob);
+      setHasPendingRequest(true);
+      setIsVerifyOpen(false);
+    } catch (err: any) {
+      console.error('Error requesting verification:', err);
+    }
+  }
 
   const handleUpload = async () => {
   if (!file) {
@@ -354,15 +483,48 @@ export default function TelemetryAnalysis() {
           </Box>
         )}
 
-        {/* Refresh Button */}
-        <HStack justify="center">
-          <Button onClick={fetchTelemetryData} colorScheme="blue">
-            Refresh Data
-          </Button>
-          <Button colorScheme="green" onClick={onOpen}>
-            Add Data
-          </Button>
-        </HStack>
+        {/* Action Buttons */}
+
+<HStack justify="center" spacing={4}>
+  <Button onClick={fetchTelemetryData} colorScheme="blue">
+    Refresh Data
+  </Button>
+      {jobStatus === "Completed" && (
+    hasPendingRequest ? (
+      <Button colorScheme="gray" size="lg" isDisabled>
+        Request Currently Pending
+      </Button>
+    ) : (
+      <Button colorScheme="green" size="lg" onClick={() => setIsVerifyOpen(true)}>
+        Request Verification of Job Data?
+      </Button>
+    )
+  )}
+
+      {jobStatus === "Active" && (
+        <Button colorScheme="green" onClick={onOpen}>
+          Upload Data
+        </Button>
+      )}
+
+      {jobStatus === "Paused" && (
+        <Button colorScheme="yellow" onClick={handleResumeJob}>
+          Resume Job
+        </Button>
+      )}
+
+      {/* Only allow marking complete when not completed already */}
+      {(jobStatus === "Active" || jobStatus === "Paused") && (
+        <Button colorScheme="red" onClick={() => setIsConfirmOpen(true)}>
+          Mark Job as Complete?
+        </Button>
+      )}
+</HStack>
+
+
+
+
+
         <Modal isOpen={isOpen} onClose={onClose} size="md">
           <ModalOverlay />
           <ModalContent>
@@ -393,6 +555,56 @@ export default function TelemetryAnalysis() {
             </ModalFooter>
           </ModalContent>
         </Modal>
+
+        <Modal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)}>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Confirm Completion</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <Text>
+                This action cannot be undone, and Telemetry data cannot be uploaded to a completed job.
+                Continue?
+              </Text>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={() => setIsConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleCompleteJob}>
+                Continue
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        <Modal isOpen={isVerifyOpen} onClose={() => setIsVerifyOpen(false)}>
+  <ModalOverlay />
+  <ModalContent>
+    <ModalHeader>Request Verification</ModalHeader>
+    <ModalCloseButton />
+    <ModalBody>
+      <Text mb={4}>
+        To begin the process of turning this data into a carbon credit, it must first
+        be verified by our internal system.
+      </Text>
+      <Text>
+        To begin the process of verification, press the button below. You will be
+        notified when verification is complete.
+      </Text>
+    </ModalBody>
+    <ModalFooter>
+      <Button variant="ghost" mr={3} onClick={() => setIsVerifyOpen(false)}>
+        Cancel
+      </Button>
+      <Button colorScheme="green" onClick={handleVerificationRequest}>
+        Begin Verification
+      </Button>
+    </ModalFooter>
+  </ModalContent>
+</Modal>
+
+
 
       </VStack>
     </Container>

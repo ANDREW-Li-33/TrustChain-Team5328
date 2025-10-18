@@ -1,5 +1,5 @@
 import express from 'express';
-import { addRequest, getRequests, getOneRequest, getRequestsByOperatorID, deleteRequest, updateRequestStatus } from '../database/pendingrequests';
+import { addRequest, getRequests, getRequestByJobID, getOneRequest, getRequestsByOperatorID, deleteRequest, updateRequestStatus } from '../database/pendingrequests';
 
 const router = express.Router();
 
@@ -51,6 +51,14 @@ router.get('/operator/:operatorID', async (req, res) => {
     const requests = await getRequestsByOperatorID(Number(req.params.operatorID));
     if (!requests) {
         return res.status(404).json({ error: "No requests found for this operator" });
+    }
+    res.status(200).json(requests);
+});
+
+router.get('/job/:jobID', async (req, res) => {
+    const requests = await getRequestByJobID(Number(req.params.jobID));
+    if (!requests) {
+        return res.status(404).json({ error: "No requests found for this job" });
     }
     res.status(200).json(requests);
 });
