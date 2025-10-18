@@ -9,7 +9,8 @@ import {
   Heading,
   Text,
   useColorModeValue,
-  Select,
+  RadioGroup,
+  Radio,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -22,7 +23,7 @@ export default function RegistrationPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState("Operator");
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -93,16 +94,15 @@ export default function RegistrationPage() {
                 }}
               />
             </FormControl>
-            <FormControl id="role">
-              <FormLabel>Role</FormLabel>
-              <Select placeholder="Select option"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <option value="Operator">Operator</option>
-                <option value="Verifier">Verifier</option>
-              </Select>
-            </FormControl>
+
+            <RadioGroup onChange={setRole} value={role}>
+              <Stack direction="row">
+                <Radio value="Operator">Operator</Radio>
+                <Radio value="Buyer">Buyer</Radio>
+                <Radio value="Verifier">Verifier</Radio>
+              </Stack>
+            </RadioGroup>
+
             <Stack spacing={10}>
               <Stack
                 direction={{ base: "column", sm: "row" }}
