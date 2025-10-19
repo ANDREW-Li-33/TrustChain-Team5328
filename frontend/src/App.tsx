@@ -23,7 +23,7 @@ function App() {
         element={
           <Protected>
             <NavBar />
-            <HomePage />
+            <OperatorDashboard />
           </Protected>
         }
       />
@@ -65,6 +65,16 @@ function App() {
         path="/telemetry"
         element={
           <Protected>
+            <NavBar />
+            <TelemetryAnalysis />
+          </Protected>
+        }
+      />
+      <Route
+        path="/telemetry/:jobId"
+        element={
+          <Protected>
+            <NavBar />
             <TelemetryAnalysis />
           </Protected>
         }

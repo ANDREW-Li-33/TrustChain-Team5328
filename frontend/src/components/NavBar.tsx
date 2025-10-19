@@ -26,20 +26,12 @@ interface Props {
 
 const Links = [
   {
-    name: "Home",
-    path: "/",
-  },
-  {
     name: "Operator",
     path: "/operator",
   },
   {
     name: "Jobs",
     path: "/jobs",
-  },
-  {
-    name: "Telemetry",
-    path: "/telemetry",
   },
   {
     name: "Tokens",
@@ -144,7 +136,7 @@ export default function NavBar() {
           <Box pb={4} display={{ md: "none" }}>
             <Stack as={"nav"} spacing={4}>
               {Links.map((link) => (
-                <NavLink key={link.name} path={link.name}>
+                <NavLink key={link.name} path={link.path}>
                   {link.name}
                 </NavLink>
               ))}
