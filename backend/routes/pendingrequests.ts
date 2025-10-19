@@ -1,5 +1,6 @@
 import express from 'express';
 import { addRequest, getRequests, getRequestByJobID, getOneRequest, getRequestsByOperatorID, deleteRequest, updateRequestStatus } from '../database/pendingrequests';
+import { updateJobStatus } from '../database/jobs';
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ router.post('/', async (req, res) => {
         });
 
         if (!newRequest) {
-            return res.status(500).json({ error: "Failed to insert user, error 2 in routes/pendingrequests.ts" });
+            return res.status(500).json({ error: "Failed to insert request, error 2 in routes/pendingrequests.ts" });
         }
 
         res.status(201).json({ message: "Request added successfully", data: newRequest });
@@ -71,7 +72,7 @@ router.delete('/:id', async (req, res) => {
     res.status(200).json({ message: "Request deleted successfully", data: deletedRequest });
 });
 
-// for updating request status
+// Update to mint job when verification is complete
 router.put('/:id/status', async (req, res) => {
     try {
       const { status, verificationTimestamp } = req.body;
@@ -79,6 +80,13 @@ router.put('/:id/status', async (req, res) => {
       if (!status) {
         return res.status(400).json({ error: "Status is required" });
       }
+
+      // Get the request to find the associated jobID
+      const request = await getOneRequest(Number(req.params.id));
+      if (!request) {
+        return res.status(404).json({ error: "Request not found" });
+      }
+
       const updatedRequest = await updateRequestStatus(
         Number(req.params.id), 
         status,
@@ -87,6 +95,18 @@ router.put('/:id/status', async (req, res) => {
       
       if (!updatedRequest) {
         return res.status(500).json({ error: "Failed to update request status" });
+      }
+
+      // If status is Complete, update the job status to Minted
+      if (status === 'Complete') {
+        console.log(`Minting job ${request.jobID} after verification approval`);
+        const jobUpdate = await updateJobStatus(request.jobID, 'Minted');
+        if (!jobUpdate) {
+          console.error("Failed to update job status to Minted");
+          // Continue anyway as the request was updated successfully
+        } else {
+          console.log(`Job ${request.jobID} successfully minted`);
+        }
       }
       
       res.status(200).json({ 
@@ -97,6 +117,6 @@ router.put('/:id/status', async (req, res) => {
       console.error("Error in PUT /pendingrequests/:id/status:", error);
       res.status(500).json({ error: "Internal server error" });
     }
-  });
+});
 
 export default router;

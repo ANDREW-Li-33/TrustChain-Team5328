@@ -30,7 +30,8 @@ import {
   ModalCloseButton,
   FormControl,
   FormLabel,
-  Input
+  Input,
+  Badge,
 } from '@chakra-ui/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -67,6 +68,8 @@ type UserRow = {
   email?: string | null;
 };
 
+type JobStatus = 'Active' | 'Completed' | 'Paused' | 'Minted';
+
 export default function TelemetryAnalysis() {
   const [aggregateData, setAggregateData] = useState<AggregateData | null>(null);
   const [telemetryData, setTelemetryData] = useState<TelemetryData[]>([]);
@@ -79,7 +82,7 @@ export default function TelemetryAnalysis() {
   const toast = useToast();
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [jobStatus, setJobStatus] = useState<'Active' | 'Completed' | 'Paused'>('Active');
+  const [jobStatus, setJobStatus] = useState<JobStatus>('Active');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
@@ -108,14 +111,16 @@ export default function TelemetryAnalysis() {
       setError(null);
 
       const telemetryResponse = await fetch(`${API_BASE}/telemetrydata/job/${selectedJob}`);
-      console.log('Selected Job ID:', selectedJob);
       const jobResponse = await fetch(`${API_BASE}/jobs/${selectedJob}`);
+      
       if (!jobResponse.ok) {
         throw new Error('Failed to fetch job details, error 1 in TelemetryAnalysis');
       }
+      
       const job = await jobResponse.json();
       setJobName(job.jobTitle || "Error fetching Job Title");
       setJobStatus(job.status || "Error fetching Job Status");
+      
       if (telemetryResponse.ok) {
         const rows = await telemetryResponse.json();
         const mapped = (rows || []).map((r: any) => ({
@@ -190,9 +195,7 @@ export default function TelemetryAnalysis() {
 
   const requestCarbonCredits = async () => {
     try {
-      // This would trigger the carbon credits request process
       console.log('Requesting carbon credits for job:', selectedJob);
-      // Implementation would go here
     } catch (err) {
       console.error('Error requesting carbon credits:', err);
     }
@@ -209,7 +212,7 @@ export default function TelemetryAnalysis() {
       setHasPendingRequest(requests.length > 0);
     } catch (err) {
       console.log('Error checking pending requests:', err);
-      setHasPendingRequest(true); // assume true on error
+      setHasPendingRequest(true);
     }
   }
 
@@ -225,6 +228,18 @@ export default function TelemetryAnalysis() {
         });
         return;
       }
+
+      if (jobStatus === 'Minted') {
+        toast({
+          title: "Already minted",
+          description: "This job has already been verified and minted as a carbon credit.",
+          status: "info",
+          duration: 4000,
+          isClosable: true,
+        });
+        return;
+      }
+
       const uRes = await fetch(`${API_BASE}/users`);
       const users: UserRow[] = await uRes.json();
       const me = users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
@@ -237,82 +252,110 @@ export default function TelemetryAnalysis() {
       if (!me) throw new Error("No matching user in the DB");
       const operatorID = me.userID;
 
-
       const res = await fetch(`${API_BASE}/pendingrequests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          operatorID, jobID: Number(selectedJob), status: "Pending" }),
+          operatorID,
+          jobID: Number(selectedJob),
+          status: "Pending"
+        }),
       });
 
       if (!res.ok) {
         throw new Error(`Request failed (${res.status})`);
       }
-      console.log('Verification request sent for job:', selectedJob);
+
+      toast({
+        title: "Verification requested",
+        description: "Your request has been submitted for verification.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+
       setHasPendingRequest(true);
       setIsVerifyOpen(false);
     } catch (err: any) {
       console.error('Error requesting verification:', err);
+      toast({
+        title: "Request failed",
+        description: err.message || "Unable to submit verification request.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
     }
   }
 
   const handleUpload = async () => {
-  if (!file) {
-    toast({
-      title: "No file selected",
-      description: "Please select a JSON file to upload.",
-      status: "warning",
-      duration: 3000,
-      isClosable: true,
-    });
-    return;
-  }
-
-  setUploading(true);
-
-  try {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-
-    const res = await fetch(`${API_BASE}/telemetrydata`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jobID: Number(selectedJob),
-        Approved: false,
-        metadata: parsed,
-      }),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Upload failed (${res.status})`);
+    if (!file) {
+      toast({
+        title: "No file selected",
+        description: "Please select a JSON file to upload.",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
     }
 
-    toast({
-      title: "Telemetry data added",
-      description: "The file was uploaded successfully.",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
+    if (jobStatus === 'Minted') {
+      toast({
+        title: "Upload not allowed",
+        description: "Cannot upload data to a minted job. The job has already been verified and minted as a carbon credit.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
 
-    setFile(null);
-    onClose();
-    await fetchTelemetryData(); // refresh chart
-  } catch (err: any) {
-    console.error("Upload error:", err);
-    toast({
-      title: "Upload failed",
-      description: err.message || "Unable to add telemetry data.",
-      status: "error",
-      duration: 4000,
-      isClosable: true,
-    });
-  } finally {
-    setUploading(false);
-  }
-};
+    setUploading(true);
 
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      const res = await fetch(`${API_BASE}/telemetrydata`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobID: Number(selectedJob),
+          Approved: false,
+          metadata: parsed,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `Upload failed (${res.status})`);
+      }
+
+      toast({
+        title: "Telemetry data added",
+        description: "The file was uploaded successfully.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+
+      setFile(null);
+      onClose();
+      await fetchTelemetryData();
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      toast({
+        title: "Upload failed",
+        description: err.message || "Unable to add telemetry data.",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const processChartData = () => {
     if (!telemetryData.length) return [];
@@ -330,9 +373,6 @@ export default function TelemetryAnalysis() {
       flaring_m3: record.payload_json?.flaring_m3 ?? 0,
     }));
   };
-
-
-
 
   if (loading) {
     return (
@@ -360,9 +400,17 @@ export default function TelemetryAnalysis() {
     <Container maxW="container.xl" py={8}>
       <VStack spacing={8} align="stretch">
         <Box>
-          <Heading mb={4}>Telemetry Analysis Dashboard</Heading>
+          <HStack justify="space-between" mb={2}>
+            <Heading mb={4}>Telemetry Analysis Dashboard</Heading>
+            {jobStatus === 'Minted' && (
+              <Badge colorScheme="purple" fontSize="lg" px={4} py={2}>
+                ✓ Minted as Carbon Credit
+              </Badge>
+            )}
+          </HStack>
           <Text color="gray.600">
             Real-time monitoring of CO2 emissions and energy consumption
+            {jobName && ` for ${jobName}`}
           </Text>
         </Box>
 
@@ -429,7 +477,9 @@ export default function TelemetryAnalysis() {
         {/* Charts */}
         {telemetryData.length > 0 && (
           <Box>
-            <Heading size="md" mb={4}>Real-time Telemetry Data {jobName ? `for ${jobName}` : `for Job ${selectedJob}`} </Heading>
+            <Heading size="md" mb={4}>
+              Real-time Telemetry Data {jobName ? `for ${jobName}` : `for Job ${selectedJob}`}
+            </Heading>
             <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
               {/* Power Consumption Chart */}
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
@@ -484,47 +534,55 @@ export default function TelemetryAnalysis() {
         )}
 
         {/* Action Buttons */}
+        <HStack justify="center" spacing={4} flexWrap="wrap">
+          <Button onClick={fetchTelemetryData} colorScheme="blue">
+            Refresh Data
+          </Button>
 
-<HStack justify="center" spacing={4}>
-  <Button onClick={fetchTelemetryData} colorScheme="blue">
-    Refresh Data
-  </Button>
-      {jobStatus === "Completed" && (
-    hasPendingRequest ? (
-      <Button colorScheme="gray" size="lg" isDisabled>
-        Request Currently Pending
-      </Button>
-    ) : (
-      <Button colorScheme="green" size="lg" onClick={() => setIsVerifyOpen(true)}>
-        Request Verification of Job Data?
-      </Button>
-    )
-  )}
+          {/* Show minted status */}
+          {jobStatus === "Minted" && (
+            <Alert status="success" variant="subtle" borderRadius="md" maxW="400px">
+              <AlertIcon />
+              This job has been verified and minted as a carbon credit
+            </Alert>
+          )}
 
-      {jobStatus === "Active" && (
-        <Button colorScheme="green" onClick={onOpen}>
-          Upload Data
-        </Button>
-      )}
+          {/* Show verification options for completed jobs */}
+          {jobStatus === "Completed" && !hasPendingRequest && (
+            <Button colorScheme="green" size="lg" onClick={() => setIsVerifyOpen(true)}>
+              Request Verification
+            </Button>
+          )}
 
-      {jobStatus === "Paused" && (
-        <Button colorScheme="yellow" onClick={handleResumeJob}>
-          Resume Job
-        </Button>
-      )}
+          {jobStatus === "Completed" && hasPendingRequest && (
+            <Button colorScheme="gray" size="lg" isDisabled>
+              Request Currently Pending
+            </Button>
+          )}
 
-      {/* Only allow marking complete when not completed already */}
-      {(jobStatus === "Active" || jobStatus === "Paused") && (
-        <Button colorScheme="red" onClick={() => setIsConfirmOpen(true)}>
-          Mark Job as Complete?
-        </Button>
-      )}
-</HStack>
+          {/* Upload button only for active jobs */}
+          {jobStatus === "Active" && (
+            <Button colorScheme="green" onClick={onOpen}>
+              Upload Data
+            </Button>
+          )}
 
+          {/* Resume button for paused jobs */}
+          {jobStatus === "Paused" && (
+            <Button colorScheme="yellow" onClick={handleResumeJob}>
+              Resume Job
+            </Button>
+          )}
 
+          {/* Complete button for active/paused jobs */}
+          {(jobStatus === "Active" || jobStatus === "Paused") && (
+            <Button colorScheme="red" onClick={() => setIsConfirmOpen(true)}>
+              Mark Job as Complete
+            </Button>
+          )}
+        </HStack>
 
-
-
+        {/* Upload Modal */}
         <Modal isOpen={isOpen} onClose={onClose} size="md">
           <ModalOverlay />
           <ModalContent>
@@ -539,6 +597,12 @@ export default function TelemetryAnalysis() {
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
               </FormControl>
+              {jobStatus === 'Minted' && (
+                <Alert status="error" mt={4}>
+                  <AlertIcon />
+                  Cannot upload to a minted job
+                </Alert>
+              )}
             </ModalBody>
             <ModalFooter>
               <Button variant="ghost" mr={3} onClick={onClose}>
@@ -549,6 +613,7 @@ export default function TelemetryAnalysis() {
                 onClick={handleUpload}
                 isLoading={uploading}
                 loadingText="Uploading..."
+                isDisabled={jobStatus === 'Minted'}
               >
                 Upload
               </Button>
@@ -556,6 +621,7 @@ export default function TelemetryAnalysis() {
           </ModalContent>
         </Modal>
 
+        {/* Confirm Complete Modal */}
         <Modal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)}>
           <ModalOverlay />
           <ModalContent>
@@ -578,38 +644,33 @@ export default function TelemetryAnalysis() {
           </ModalContent>
         </Modal>
 
+        {/* Verify Modal */}
         <Modal isOpen={isVerifyOpen} onClose={() => setIsVerifyOpen(false)}>
-  <ModalOverlay />
-  <ModalContent>
-    <ModalHeader>Request Verification</ModalHeader>
-    <ModalCloseButton />
-    <ModalBody>
-      <Text mb={4}>
-        To begin the process of turning this data into a carbon credit, it must first
-        be verified by our internal system.
-      </Text>
-      <Text>
-        To begin the process of verification, press the button below. You will be
-        notified when verification is complete.
-      </Text>
-    </ModalBody>
-    <ModalFooter>
-      <Button variant="ghost" mr={3} onClick={() => setIsVerifyOpen(false)}>
-        Cancel
-      </Button>
-      <Button colorScheme="green" onClick={handleVerificationRequest}>
-        Begin Verification
-      </Button>
-    </ModalFooter>
-  </ModalContent>
-</Modal>
-
-
-
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Request Verification</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <Text mb={4}>
+                To begin the process of turning this data into a carbon credit, it must first
+                be verified by our internal system.
+              </Text>
+              <Text>
+                To begin the process of verification, press the button below. You will be
+                notified when verification is complete.
+              </Text>
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={() => setIsVerifyOpen(false)}>
+                Cancel
+              </Button>
+              <Button colorScheme="green" onClick={handleVerificationRequest}>
+                Begin Verification
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </VStack>
     </Container>
   );
 }
-
-
-

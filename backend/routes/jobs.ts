@@ -1,5 +1,5 @@
 import express from 'express';
-import { addJob, getJobs, getJobByID, getJobsByOperatorID, updateJobStatus } from '../database/jobs';
+import { addJob, getJobs, getJobByID, getJobsByOperatorID, updateJobStatus, JobStatus } from '../database/jobs';
 
 const router = express.Router();
 
@@ -15,13 +15,13 @@ router.post('/', async (req, res) => {
         const newJob = await addJob({
             operatorID,
             toolID,
-            status,
+            status: status as JobStatus,
             dateCreated,
             jobTitle,
         });
 
         if (!newJob) {
-            return res.status(500).json({ error: "Failed to insert user, error 2 in routes/jobs.ts" });
+            return res.status(500).json({ error: "Failed to insert job, error 2 in routes/jobs.ts" });
         }
 
         res.status(201).json({ message: "Job added successfully", data: newJob });
@@ -57,7 +57,19 @@ router.get('/operator/:operatorID', async (req, res) => {
 });
 
 router.put('/:id/status', async (req, res) => {
-    const updatedJob = await updateJobStatus(Number(req.params.id), req.body.status);
+    const { status } = req.body;
+    
+    if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+    }
+
+    // Validate status value
+    const validStatuses: JobStatus[] = ['Active', 'Completed', 'Paused', 'Minted'];
+    if (!validStatuses.includes(status as JobStatus)) {
+        return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    const updatedJob = await updateJobStatus(Number(req.params.id), status as JobStatus);
     if (!updatedJob) {
         return res.status(500).json({ error: "Failed to update job status" });
     }

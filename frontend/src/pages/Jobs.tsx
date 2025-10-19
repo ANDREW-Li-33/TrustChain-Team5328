@@ -57,9 +57,7 @@ export default function JobsPage() {
 
   const [newJobToolID, setNewJobToolID] = useState("");
   const [newJobTitle, setNewJobTitle] = useState("");
-  const [newJobStatus, setNewJobStatus] = useState<
-    "Active" | "Completed" | "Paused"
-  >("Active");
+  const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
   const [creating, setCreating] = useState(false);
 
   const fetchJobs = async () => {
@@ -71,7 +69,6 @@ export default function JobsPage() {
     try {
       // get users from backend endpoint
       const uRes = await fetch(`${API}/users`);
-      // if (!uRes.ok) throw new Error(`users fetch failed (${uRes.status})`);
       const users: UserRow[] = await uRes.json();
 
       const me =
@@ -198,6 +195,20 @@ export default function JobsPage() {
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Completed":
+        return { bg: "green.100", color: "green.800" };
+      case "Paused":
+        return { bg: "yellow.100", color: "yellow.800" };
+      case "Minted":
+        return { bg: "purple.100", color: "purple.800" };
+      case "Active":
+      default:
+        return { bg: "blue.100", color: "blue.800" };
+    }
+  };
+
   return (
     <Box p={6}>
       <HStack justify="space-between" mb={4}>
@@ -224,6 +235,7 @@ export default function JobsPage() {
           <option value="Active">Active</option>
           <option value="Completed">Completed</option>
           <option value="Paused">Paused</option>
+          <option value="Minted">Minted</option>
         </Select>
         <Button
           onClick={() => {
@@ -237,49 +249,49 @@ export default function JobsPage() {
 
       {/* cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-        {filtered.map((j) => (
-          <Box
-            key={j.jobID}
-            border="1px solid"
-            borderColor="gray.200"
-            rounded="lg"
-            p={4}
-            as="a"
-            href={`/telemetry/${j.jobID}`}
-          >
-            <HStack justify="space-between" mb={2}>
-              <Heading size="md">Job #{j.jobID}</Heading>
-              <Box
-                as="span"
-                fontWeight="semibold"
-                px={2}
-                py={1}
-                rounded="md"
-                bg={
-                  j.status === "Completed"
-                    ? "green.100"
-                    : j.status === "Paused"
-                    ? "yellow.100"
-                    : "blue.100"
-                }
-              >
-                {j.status}
-              </Box>
-            </HStack>
-            <Text mb={2} fontWeight="bold" color="blue.600">
-              {j.jobTitle}
-            </Text>
-            <Text>
-              <b>Operator:</b> {j.operatorID ?? "Unassigned"}
-            </Text>
-            <Text>
-              <b>Tool:</b> {j.toolID}
-            </Text>
-            <Text>
-              <b>Created:</b> {new Date(j.dateCreated).toLocaleString()}
-            </Text>
-          </Box>
-        ))}
+        {filtered.map((j) => {
+          const statusColors = getStatusColor(j.status);
+          return (
+            <Box
+              key={j.jobID}
+              border="1px solid"
+              borderColor="gray.200"
+              rounded="lg"
+              p={4}
+              as="a"
+              href={`/telemetry/${j.jobID}`}
+              _hover={{ boxShadow: "md", transform: "translateY(-2px)" }}
+              transition="all 0.2s"
+            >
+              <HStack justify="space-between" mb={2}>
+                <Heading size="md">Job #{j.jobID}</Heading>
+                <Box
+                  as="span"
+                  fontWeight="semibold"
+                  px={2}
+                  py={1}
+                  rounded="md"
+                  bg={statusColors.bg}
+                  color={statusColors.color}
+                >
+                  {j.status}
+                </Box>
+              </HStack>
+              <Text mb={2} fontWeight="bold" color="blue.600">
+                {j.jobTitle}
+              </Text>
+              <Text>
+                <b>Operator:</b> {j.operatorID ?? "Unassigned"}
+              </Text>
+              <Text>
+                <b>Tool:</b> {j.toolID}
+              </Text>
+              <Text>
+                <b>Created:</b> {new Date(j.dateCreated).toLocaleString()}
+              </Text>
+            </Box>
+          );
+        })}
       </SimpleGrid>
 
       {!filtered.length && <Text mt={6}>No jobs match your filters.</Text>}

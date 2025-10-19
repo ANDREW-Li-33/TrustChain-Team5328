@@ -35,7 +35,7 @@ type Operator = {
 }
 
 type TelemetryData = {
-  dataID: number;
+  entryID: number;
   jobID: number;
   Approved: boolean;
   timeUploaded: string;
@@ -141,7 +141,7 @@ export default function VerifierDashboard() {
       if (!updateResponse.ok) throw new Error("Failed to update request status");
 
       for (const telemetry of telemetryData) {
-        await fetch(`${API}/telemetrydata/${telemetry.dataID}/approve`, {
+        await fetch(`${API}/telemetrydata/${telemetry.entryID}/approve`, {
           method: "PUT",
         });
       }
@@ -459,14 +459,14 @@ export default function VerifierDashboard() {
                     <VStack align="start" spacing={2} maxH="200px" overflowY="auto">
                       {telemetryData.map((data) => (
                         <Box
-                          key={data.dataID}
+                          key={data.entryID}
                           p={2}
                           borderWidth="1px"
                           borderRadius="md"
                           w="full"
                         >
                           <Text fontSize="sm">
-                            <strong>Entry #{data.dataID}</strong>
+                            <strong>Entry #{data.entryID}</strong>
                           </Text>
                           <Text fontSize="sm">
                             Uploaded: {new Date(data.timeUploaded).toLocaleString()}

@@ -1,9 +1,11 @@
 import { supabase } from '../supabaseClient.js';
 
+export type JobStatus = 'Active' | 'Completed' | 'Paused' | 'Minted';
+
 export async function addJob(job: {
   operatorID: number;
   toolID: number;
-  status: 'Active' | 'Completed' | 'Paused';
+  status: JobStatus;
   dateCreated?: string;
   jobTitle?: string;
 }) {
@@ -14,11 +16,11 @@ export async function addJob(job: {
         operatorID: job.operatorID,
         toolID: job.toolID,
         status: job.status || 'Active',
-        dateCreated: job.dateCreated || new Date().toISOString(), // defaults to current time
+        dateCreated: job.dateCreated || new Date().toISOString(),
         jobTitle: job.jobTitle || 'Untitled Job',
       },
     ])
-    .select(); // return the inserted row(s)
+    .select();
 
   if (error) {
     console.error('Error inserting Job:', error);
@@ -56,8 +58,12 @@ export async function getJobsByOperatorID(operatorID: number) {
     return data;
 }
 
-export async function updateJobStatus(jobID: number, newStatus: 'Active' | 'Completed' | 'Paused') {
-    const { data, error } = await supabase.from('Jobs').update({ status: newStatus }).eq('jobID', jobID).select();
+export async function updateJobStatus(jobID: number, newStatus: JobStatus) {
+    const { data, error } = await supabase
+      .from('Jobs')
+      .update({ status: newStatus })
+      .eq('jobID', jobID)
+      .select();
     if (error) {
         console.error('Error updating job status:', error);
         return null;

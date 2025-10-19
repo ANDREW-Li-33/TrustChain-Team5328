@@ -1,6 +1,6 @@
 import express from 'express';
 import { addTelemetryData, getTelemetryData, getTelemetryDataByJobID, approveTelemetryData } from '../database/telemetrydata';
-import { time } from 'console';
+import { getJobByID } from '../database/jobs';
 
 const router = express.Router();
 
@@ -11,6 +11,26 @@ router.post('/', async (req, res) => {
         // Basic validation
         if (!jobID || !metadata) {
          return res.status(400).json({ error: "Missing required fields, error 1 in routes/telemetrydata.ts" });
+        }
+
+        // Check if the job exists and its status
+        const job = await getJobByID(jobID);
+        if (!job) {
+            return res.status(404).json({ error: "Job not found" });
+        }
+
+        // Prevent uploads to minted jobs
+        if (job.status === 'Minted') {
+            return res.status(403).json({ 
+                error: "Cannot upload telemetry data to a minted job. The job has already been verified and minted as a carbon credit." 
+            });
+        }
+
+        // Prevent uploads to completed jobs
+        if (job.status === 'Completed') {
+            return res.status(403).json({ 
+                error: "Cannot upload telemetry data to a completed job. Please set the job to Active status first." 
+            });
         }
 
         const newData = await addTelemetryData({
@@ -26,7 +46,7 @@ router.post('/', async (req, res) => {
 
         res.status(201).json({ message: "Telemetry Data added successfully", data: newData });
     } catch (error) {
-        console.error("Error in routes/telemetrydata.js, error is: ", error);
+        console.error("Error in routes/telemetrydata.ts, error is: ", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
