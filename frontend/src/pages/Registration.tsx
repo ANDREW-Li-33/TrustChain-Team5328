@@ -24,6 +24,7 @@ export default function RegistrationPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Operator");
+  const [organizationName, setOrganizationName] = useState("");
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
@@ -36,6 +37,7 @@ export default function RegistrationPage() {
             firebaseUID: obj.user.uid,
             email,
             role: role,
+            organizationName: organizationName || null,
           };
 
           const res = await fetch("http://localhost:5050/users/", {
@@ -47,7 +49,9 @@ export default function RegistrationPage() {
           });
 
           console.log("res", res);
-          nav("/");
+          if (role === "Operator") nav("/jobs");
+          else if (role === "Verifier") nav("/verifier");
+          else nav("/operator");
         }
       );
     } catch (e) {
@@ -102,6 +106,21 @@ export default function RegistrationPage() {
                 <Radio value="Verifier">Verifier</Radio>
               </Stack>
             </RadioGroup>
+
+            {role === "Operator" && (
+              <FormControl id="organizationName">
+              <FormLabel>Your Organization's Name</FormLabel>
+              <Input
+                type="organizationName"
+                value={organizationName}
+                onChange={(e) => {
+                  setOrganizationName(e.target.value);
+                }}
+              />
+            </FormControl>
+            )}
+
+            
 
             <Stack spacing={10}>
               <Stack

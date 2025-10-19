@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { firebaseUID, email, role, dateJoined } = req.body;
+        const { firebaseUID, email, role, dateJoined, organizationName } = req.body;
 
         // Basic validation
         if (!firebaseUID || !email || !role) {
@@ -17,6 +17,7 @@ router.post('/', async (req, res) => {
             email,
             role,
             dateJoined,
+            organizationName,
         });
 
         if (!newUser) {

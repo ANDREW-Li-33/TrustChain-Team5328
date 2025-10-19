@@ -12,6 +12,11 @@ type PendingRequest = {
   status: string;
   requestTimestamp: string;
   verificationTimestamp: string | null;
+  operator?: {
+    userID: number;
+    organizationName: string | null;
+    email: string;
+  };
 };
 
 type Job = {
@@ -22,8 +27,15 @@ type Job = {
   dateCreated: string;
 };
 
+type Operator = {
+  userID: number;
+  firebaseUID: string;
+  email: string;
+  organizationName: string | null;
+}
+
 type TelemetryData = {
-  entryID: number;
+  dataID: number;
   jobID: number;
   Approved: boolean;
   timeUploaded: string;
@@ -50,7 +62,7 @@ export default function VerifierDashboard() {
   const [err, setErr] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [searchQuery, setSearchQuery] = useState("");
-
+  const [operatorDetails, setOperatorDetails] = useState<Operator | null>(null);
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -83,6 +95,12 @@ export default function VerifierDashboard() {
       if (jobResponse.ok) {
         const job = await jobResponse.json();
         setJobDetails(job);
+      }
+
+      const operatorResponse = await fetch(`${API}/users/${request.operatorID}`);
+      if (operatorResponse.ok) {
+        const operator = await operatorResponse.json();
+        setOperatorDetails(operator);
       }
 
       // get telemetry data
@@ -123,7 +141,7 @@ export default function VerifierDashboard() {
       if (!updateResponse.ok) throw new Error("Failed to update request status");
 
       for (const telemetry of telemetryData) {
-        await fetch(`${API}/telemetrydata/${telemetry.entryID}/approve`, {
+        await fetch(`${API}/telemetrydata/${telemetry.dataID}/approve`, {
           method: "PUT",
         });
       }
@@ -315,7 +333,9 @@ export default function VerifierDashboard() {
               >
                 <CardHeader>
                   <HStack justify="space-between">
-                    <Heading size="md">Request #{request.requestID}</Heading>
+                    <Heading size="md">
+                      Request from {request.operator?.organizationName ?? `Operator #${request.operatorID}`}
+                    </Heading>
                     <Badge
                       colorScheme={
                         request.status === "Pending" ? "orange" :
@@ -439,14 +459,14 @@ export default function VerifierDashboard() {
                     <VStack align="start" spacing={2} maxH="200px" overflowY="auto">
                       {telemetryData.map((data) => (
                         <Box
-                          key={data.entryID}
+                          key={data.dataID}
                           p={2}
                           borderWidth="1px"
                           borderRadius="md"
                           w="full"
                         >
                           <Text fontSize="sm">
-                            <strong>Entry #{data.entryID}</strong>
+                            <strong>Entry #{data.dataID}</strong>
                           </Text>
                           <Text fontSize="sm">
                             Uploaded: {new Date(data.timeUploaded).toLocaleString()}

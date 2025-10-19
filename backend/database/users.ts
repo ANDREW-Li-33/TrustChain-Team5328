@@ -5,6 +5,7 @@ export async function addUser(user: {
   email: string;
   role: 'Operator' | 'Buyer' | 'Admin' | 'Verifier';
   dateJoined?: string;
+  organizationName?: string;
 }) {
   const { data, error } = await supabase
     .from('Users')
@@ -14,6 +15,7 @@ export async function addUser(user: {
         email: user.email,
         role: user.role,
         dateJoined: user.dateJoined || new Date().toISOString(), // defaults to current time
+        organizationName: user.organizationName || null,
       },
     ])
     .select(); // return the inserted row(s)

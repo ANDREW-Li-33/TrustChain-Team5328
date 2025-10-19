@@ -30,7 +30,7 @@ export async function addRequest(request: {
 }
 
 export async function getRequests() {
-    const { data, error } = await supabase.from('PendingRequests').select('*');
+    const { data, error } = await supabase.from('PendingRequests').select('*, operator:Users (userID, organizationName, email)');
     if (error) {
         console.error('Error fetching requests:', error);
         return null;
