@@ -9,6 +9,7 @@ import {
   Heading,
   Text,
   useColorModeValue,
+  useToast,
 } from "@chakra-ui/react";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { useState } from "react";
@@ -20,12 +21,27 @@ const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as 
 export default function LoginPage() {
   const auth = getAuth(app);
   const nav = useNavigate();
+  const toast = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter both email and password",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password).then(async (obj) => {
         const firebaseUID = obj.user?.uid;
@@ -41,8 +57,31 @@ export default function LoginPage() {
           nav("/");
         }
       });
-    } catch (e) {
-      console.log(e);
+    } catch (e: any) {
+      console.error("Login error:", e);
+      let errorMessage = "Login failed. Please try again.";
+      
+      if (e.code === "auth/user-not-found") {
+        errorMessage = "No account found with this email address.";
+      } else if (e.code === "auth/wrong-password") {
+        errorMessage = "Incorrect password. Please try again.";
+      } else if (e.code === "auth/invalid-email") {
+        errorMessage = "Invalid email address format.";
+      } else if (e.code === "auth/too-many-requests") {
+        errorMessage = "Too many failed attempts. Please try again later.";
+      } else if (e.code === "auth/network-request-failed") {
+        errorMessage = "Network error. Please check your connection.";
+      }
+      
+      toast({
+        title: "Login Failed",
+        description: errorMessage,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -101,6 +140,8 @@ export default function LoginPage() {
                 _hover={{
                   bg: "blue.500",
                 }}
+                isLoading={loading}
+                loadingText="Signing in..."
                 onClick={(e) => handleSubmit(e)}
               >
                 Sign in

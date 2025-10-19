@@ -11,6 +11,7 @@ import {
   useColorModeValue,
   RadioGroup,
   Radio,
+  useToast,
 } from "@chakra-ui/react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -20,14 +21,51 @@ import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
 export default function RegistrationPage() {
   const auth = getAuth(app);
   const nav = useNavigate();
+  const toast = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Operator");
   const [organizationName, setOrganizationName] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter both email and password",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast({
+        title: "Password Error",
+        description: "Password must be at least 6 characters long",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (role === "Operator" && !organizationName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter your organization name",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setLoading(true);
     try {
       await createUserWithEmailAndPassword(auth, email, password).then(
         async (obj) => {
@@ -49,13 +87,43 @@ export default function RegistrationPage() {
           });
 
           console.log("res", res);
+          
+          toast({
+            title: "Registration Successful",
+            description: "Account created successfully!",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+          });
+
           if (role === "Operator") nav("/jobs");
           else if (role === "Verifier") nav("/verifier");
           else nav("/operator");
         }
       );
-    } catch (e) {
-      console.log(e);
+    } catch (e: any) {
+      console.error("Registration error:", e);
+      let errorMessage = "Registration failed. Please try again.";
+      
+      if (e.code === "auth/email-already-in-use") {
+        errorMessage = "An account with this email already exists.";
+      } else if (e.code === "auth/invalid-email") {
+        errorMessage = "Invalid email address format.";
+      } else if (e.code === "auth/weak-password") {
+        errorMessage = "Password is too weak. Please choose a stronger password.";
+      } else if (e.code === "auth/network-request-failed") {
+        errorMessage = "Network error. Please check your connection.";
+      }
+      
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -138,6 +206,8 @@ export default function RegistrationPage() {
                 _hover={{
                   bg: "blue.500",
                 }}
+                isLoading={loading}
+                loadingText="Creating account..."
                 onClick={(e) => handleSubmit(e)}
               >
                 Register
