@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import { Context } from "../context/authContext";
 import {
   Box, Container, Heading, Text, SimpleGrid, HStack, VStack, Input, Select, Button, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, Badge, useDisclosure, useToast, Divider, Stat, StatLabel, StatNumber, Card, CardHeader, CardBody, CardFooter,
@@ -51,6 +52,7 @@ export default function VerifierDashboard() {
   const { user } = useContext<any>(Context);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [requests, setRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
@@ -329,8 +331,8 @@ export default function VerifierDashboard() {
                   transform: "translateY(-4px)",
                   boxShadow: "lg",
                 }}
-                onClick={() => handleViewRequest(request)}
-              >
+                onClick={() => navigate(`/verifier/request/${request.requestID}`)}
+                >
                 <CardHeader>
                   <HStack justify="space-between">
                     <Heading size="md">
@@ -367,9 +369,17 @@ export default function VerifierDashboard() {
                   </VStack>
                 </CardBody>
                 <CardFooter pt={0}>
-                  <Button colorScheme="blue" size="sm" width="full">
-                    View Details
-                  </Button>
+                    <Button 
+                        colorScheme="blue" 
+                        size="sm" 
+                        width="full"
+                        onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/verifier/request/${request.requestID}`);
+                        }}
+                    >
+                        Review Evidence Package
+                    </Button>
                 </CardFooter>
               </Card>
             ))}

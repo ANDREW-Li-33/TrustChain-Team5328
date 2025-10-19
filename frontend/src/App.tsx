@@ -1,7 +1,8 @@
 import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/Login";
 import OperatorDashboard from "./pages/OperatorDashboard";
-import VerifierDashboard from "./pages/VerifierDashboard"
+import VerifierDashboard from "./pages/VerifierDashboard";
+import VerifierEvidenceReview from "./pages/VerifierEvidenceReview"; // NEW
 import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
@@ -12,11 +13,11 @@ import JobsPage from "./pages/Jobs";
 function App() {
   return (
     <Routes>
-      {/* Unprotected Routes. Users can access these pages without needing to be authenticated */}
+      {/* Unprotected Routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegistrationPage />} />
 
-      {/* Protected Routes. Users can access these pages only after being authenticated */}
+      {/* Protected Routes */}
       <Route
         path="/"
         element={
@@ -45,10 +46,18 @@ function App() {
         }
       />
       <Route
-        path="verifier"
+        path="/verifier"
         element={
           <Protected>
             <VerifierDashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/verifier/request/:requestId"
+        element={
+          <Protected>
+            <VerifierEvidenceReview />
           </Protected>
         }
       />
