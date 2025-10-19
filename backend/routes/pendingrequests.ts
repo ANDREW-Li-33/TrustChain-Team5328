@@ -1,6 +1,8 @@
 import express from 'express';
 import { addRequest, getRequests, getRequestByJobID, getOneRequest, getRequestsByOperatorID, deleteRequest, updateRequestStatus } from '../database/pendingrequests';
-import { updateJobStatus } from '../database/jobs';
+import { updateJobStatus, getJobByID } from '../database/jobs';
+import { addToken } from '../database/tokens';
+import { getTelemetryDataByJobID } from '../database/telemetrydata';
 
 const router = express.Router();
 
@@ -8,7 +10,6 @@ router.post('/', async (req, res) => {
     try {
         const { operatorID, jobID, status, requestTimestamp, verificationTimestamp } = req.body;
 
-        // Basic validation
         if (!operatorID || !jobID || !status) {
          return res.status(400).json({ error: "Missing required fields, error 1 in routes/pendingrequests.ts" });
         }
@@ -72,7 +73,53 @@ router.delete('/:id', async (req, res) => {
     res.status(200).json({ message: "Request deleted successfully", data: deletedRequest });
 });
 
-// Update to mint job when verification is complete
+// Helper function to calculate CO2 savings from telemetry data
+function calculateCO2Savings(telemetryData: any[]): number {
+    // Simple calculation - in production this would use the MRV engine
+    // For now, we'll estimate based on power consumption
+    const emissionFactor = 0.00025; // tCO2e per kWh
+    
+    let totalSavings = 0;
+    for (const data of telemetryData) {
+        const metadata = data.metadata;
+        if (metadata?.measurements) {
+            const powerKw = metadata.measurements.power_kw || 0;
+            const runtimeHours = (metadata.measurements.runtime_sec || 0) / 3600;
+            const energyUsed = powerKw * runtimeHours;
+            
+            // Assuming baseline is 20% higher than actual (this is simplified)
+            const baseline = energyUsed * 1.2;
+            const savings = (baseline - energyUsed) * emissionFactor;
+            totalSavings += Math.max(0, savings);
+        }
+    }
+    
+    return Math.round(totalSavings * 1000) / 1000; // Round to 3 decimals
+}
+
+// Helper function to calculate quality score (0-100)
+function calculateQualityScore(telemetryData: any[]): number {
+    // Quality based on data completeness and consistency
+    if (telemetryData.length === 0) return 50; // Default if no data
+    
+    let score = 100;
+    
+    // Deduct points for missing data
+    const completeRecords = telemetryData.filter(d => 
+        d.metadata?.measurements?.power_kw && 
+        d.metadata?.measurements?.runtime_sec
+    );
+    const completenessRatio = completeRecords.length / telemetryData.length;
+    score = score * completenessRatio;
+    
+    // Bonus for more data points
+    if (telemetryData.length >= 5) score = Math.min(100, score + 5);
+    if (telemetryData.length >= 10) score = Math.min(100, score + 5);
+    
+    return Math.round(score);
+}
+
+// Update to mint job when verification is complete AND create token
 router.put('/:id/status', async (req, res) => {
     try {
       const { status, verificationTimestamp } = req.body;
@@ -97,16 +144,76 @@ router.put('/:id/status', async (req, res) => {
         return res.status(500).json({ error: "Failed to update request status" });
       }
 
-      // If status is Complete, update the job status to Minted
+      // If status is Complete, update the job status to Minted AND create token
       if (status === 'Complete') {
-        console.log(`Minting job ${request.jobID} after verification approval`);
+        console.log(`\n=== Processing verification approval for job ${request.jobID} ===`);
+        
+        // 1. Update job status to Minted
+        console.log(`Step 1: Minting job ${request.jobID}...`);
         const jobUpdate = await updateJobStatus(request.jobID, 'Minted');
         if (!jobUpdate) {
           console.error("Failed to update job status to Minted");
-          // Continue anyway as the request was updated successfully
-        } else {
-          console.log(`Job ${request.jobID} successfully minted`);
+          return res.status(500).json({ error: "Failed to mint job" });
         }
+        console.log(`Job ${request.jobID} successfully minted`);
+
+        // 2. Get job details to find the owner
+        console.log(`Step 2: Fetching job details...`);
+        const job = await getJobByID(request.jobID);
+        if (!job) {
+          console.error("Failed to fetch job details");
+          return res.status(500).json({ error: "Failed to fetch job details" });
+        }
+        console.log(`Job details retrieved - Owner: ${job.operatorID}, Tool: ${job.toolID}`);
+
+        // 3. Get telemetry data for metadata
+        console.log(`Step 3: Fetching telemetry data...`);
+        const telemetryData = await getTelemetryDataByJobID(request.jobID);
+        if (!telemetryData || telemetryData.length === 0) {
+          console.warn("No telemetry data found for this job");
+        } else {
+          console.log(`Retrieved ${telemetryData.length} telemetry records`);
+        }
+
+        // 4. Calculate CO2 savings and quality
+        console.log(`Step 4: Calculating CO2 savings and quality score...`);
+        const co2Saved = calculateCO2Savings(telemetryData || []);
+        const quality = calculateQualityScore(telemetryData || []);
+        console.log(`CO2 Saved: ${co2Saved} tCO2e, Quality Score: ${quality}/100`);
+
+        // 5. Create token metadata
+        const tokenMetadata = {
+          jobID: request.jobID,
+          jobTitle: job.jobTitle || 'Untitled Job',
+          toolID: job.toolID,
+          verificationDate: verificationTimestamp || new Date().toISOString(),
+          co2Saved: co2Saved,
+          telemetryRecords: telemetryData?.length || 0,
+          evidenceHash: `hash_${request.jobID}_${Date.now()}`, // In production, this would be a real hash
+        };
+
+        // 6. Create token record
+        console.log(`Step 5: Creating token record...`);
+        const newToken = await addToken({
+          ownerID: job.operatorID,
+          jobID: request.jobID,
+          quality: quality,
+          status: 'Ready for Minting',
+          metadata: tokenMetadata as any,
+        });
+
+        if (!newToken) {
+          console.error("Failed to create token record");
+          return res.status(500).json({ error: "Failed to create token" });
+        }
+
+        console.log(`✅ Token created successfully!`);
+        console.log(`   Token ID: ${newToken[0].tokenID}`);
+        console.log(`   Owner: ${newToken[0].ownerID}`);
+        console.log(`   Quality: ${newToken[0].quality}/100`);
+        console.log(`   Status: ${newToken[0].status}`);
+        console.log(`   CO2 Saved: ${co2Saved} tCO2e`);
+        console.log(`=== Verification approval complete ===\n`);
       }
       
       res.status(200).json({ 
