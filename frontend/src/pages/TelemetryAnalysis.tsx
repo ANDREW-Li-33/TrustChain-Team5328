@@ -126,6 +126,11 @@ export default function TelemetryAnalysis() {
         const mapped = (rows || []).map((r: any) => ({
           timestamp: r.metadata?.timestamp || r.timeUploaded,
           payload_json: r.metadata?.measurements,
+          // Flatten the measurements for easier access
+          power_kw: r.metadata?.measurements?.power_kw,
+          runtime_sec: r.metadata?.measurements?.runtime_sec,
+          flaring_m3: r.metadata?.measurements?.flaring_m3,
+          methane_ppm: r.metadata?.measurements?.methane_ppm,
         }));
         setTelemetryData(mapped);
       }
@@ -369,8 +374,9 @@ export default function TelemetryAnalysis() {
         month: 'short',
         day: 'numeric',
       }),
-      power_kw: record.payload_json?.power_kw ?? 0,
-      flaring_m3: record.payload_json?.flaring_m3 ?? 0,
+      power_kw: record.power_kw ?? 0,
+      flaring_m3: record.flaring_m3 ?? 0,
+      runtime_sec: record.runtime_sec ?? 0,
     }));
   };
 
@@ -441,6 +447,38 @@ export default function TelemetryAnalysis() {
               <StatHelpText>Tools contributing to savings</StatHelpText>
             </Stat>
           </SimpleGrid>
+        )}
+
+        {/* Final Statistics from Last Measurement */}
+        {telemetryData.length > 0 && (
+          <Box>
+            <Heading size="md" mb={4}>Final Measurement Statistics</Heading>
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6}>
+              <Stat p={6} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
+                <StatLabel>Final Power Consumption</StatLabel>
+                <StatNumber color="blue.500">
+                  {telemetryData[telemetryData.length - 1]?.power_kw?.toFixed(1) || 'N/A'} kW
+                </StatNumber>
+                <StatHelpText>Latest measurement</StatHelpText>
+              </Stat>
+
+              <Stat p={6} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
+                <StatLabel>Final Flaring Volume</StatLabel>
+                <StatNumber color="red.500">
+                  {telemetryData[telemetryData.length - 1]?.flaring_m3?.toFixed(2) || 'N/A'} m³
+                </StatNumber>
+                <StatHelpText>Latest measurement</StatHelpText>
+              </Stat>
+
+              <Stat p={6} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
+                <StatLabel>Final Runtime</StatLabel>
+                <StatNumber color="green.500">
+                  {telemetryData[telemetryData.length - 1]?.runtime_sec?.toFixed(0) || 'N/A'} sec
+                </StatNumber>
+                <StatHelpText>Latest measurement</StatHelpText>
+              </Stat>
+            </SimpleGrid>
+          </Box>
         )}
 
         {/* Tool Performance */}
