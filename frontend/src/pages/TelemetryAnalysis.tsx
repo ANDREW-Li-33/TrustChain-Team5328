@@ -518,7 +518,7 @@ export default function TelemetryAnalysis() {
             <Heading size="md" mb={4}>
               Real-time Telemetry Data {jobName ? `for ${jobName}` : `for Job ${selectedJob}`}
             </Heading>
-            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6}>
+            <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
               {/* Power Consumption Chart */}
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
                 <Text fontWeight="bold" mb={4}>Power Consumption (kW)</Text>
@@ -544,6 +544,20 @@ export default function TelemetryAnalysis() {
                     <Tooltip />
                     <Bar dataKey="flaring_m3" fill="#e53e3e" />
                   </BarChart>
+                </ResponsiveContainer>
+              </Box>
+
+              {/* Runtime Chart */}
+              <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
+                <Text fontWeight="bold" mb={4}>Runtime (seconds)</Text>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={processChartData()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="timestamp" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="runtime_sec" stroke="#38a169" strokeWidth={2} />
+                  </LineChart>
                 </ResponsiveContainer>
               </Box>
             </SimpleGrid>
