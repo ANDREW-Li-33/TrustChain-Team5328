@@ -599,6 +599,13 @@ export default function TelemetryAnalysis() {
             </Alert>
           )}
 
+          {jobStatus === 'Denied' && (
+            <Alert status="error" variant="subtle" borderRadius="md" maxW="400px">
+              <AlertIcon />
+              This job has been denied
+            </Alert>
+          )}  
+
           {/* Show verification options for completed jobs */}
           {jobStatus === "Completed" && !hasPendingRequest && (
             <Button colorScheme="green" size="lg" onClick={() => setIsVerifyOpen(true)}>
@@ -633,12 +640,6 @@ export default function TelemetryAnalysis() {
             </Button>
           )}
 
-          {/* Complete button for active/paused jobs */}
-          {jobStatus === "Approved" && (
-          <Button colorScheme="red" onClick={() => setIsConfirmOpen(true)}>
-            Mark Job as Complete
-          </Button>
-          )}
         </HStack>
 
         {/* Upload Modal */}
