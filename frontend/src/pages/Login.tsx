@@ -67,10 +67,20 @@ export default function LoginPage() {
         errorMessage = "Incorrect password. Please try again.";
       } else if (e.code === "auth/invalid-email") {
         errorMessage = "Invalid email address format.";
+      } else if (e.code === "auth/user-disabled") {
+        errorMessage = "This account has been disabled. Please contact support.";
+      } else if (e.code === "auth/email-already-in-use") {
+        errorMessage = "This email is already registered. Try logging in instead.";
+      } else if (e.code === "auth/weak-password") {
+        errorMessage = "Password is too weak. Please choose a stronger password.";
       } else if (e.code === "auth/too-many-requests") {
         errorMessage = "Too many failed attempts. Please try again later.";
       } else if (e.code === "auth/network-request-failed") {
         errorMessage = "Network error. Please check your connection.";
+      } else if (e.code === "auth/invalid-credential") {
+        errorMessage = "Invalid email or password. Please check your credentials.";
+      } else if (e.code === "auth/operation-not-allowed") {
+        errorMessage = "Email/password authentication is not enabled.";
       }
       
       toast({

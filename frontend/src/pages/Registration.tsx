@@ -29,9 +29,11 @@ export default function RegistrationPage() {
   const [organizationName, setOrganizationName] = useState("");
   const [loading, setLoading] = useState(false);
 
+  console.log(role);
+
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Validation Error",
@@ -87,7 +89,7 @@ export default function RegistrationPage() {
           });
 
           console.log("res", res);
-          
+
           toast({
             title: "Registration Successful",
             description: "Account created successfully!",
@@ -104,17 +106,18 @@ export default function RegistrationPage() {
     } catch (e: any) {
       console.error("Registration error:", e);
       let errorMessage = "Registration failed. Please try again.";
-      
+
       if (e.code === "auth/email-already-in-use") {
         errorMessage = "An account with this email already exists.";
       } else if (e.code === "auth/invalid-email") {
         errorMessage = "Invalid email address format.";
       } else if (e.code === "auth/weak-password") {
-        errorMessage = "Password is too weak. Please choose a stronger password.";
+        errorMessage =
+          "Password is too weak. Please choose a stronger password.";
       } else if (e.code === "auth/network-request-failed") {
         errorMessage = "Network error. Please check your connection.";
       }
-      
+
       toast({
         title: "Registration Failed",
         description: errorMessage,
@@ -172,23 +175,22 @@ export default function RegistrationPage() {
                 <Radio value="Operator">Operator</Radio>
                 <Radio value="Buyer">Buyer</Radio>
                 <Radio value="Verifier">Verifier</Radio>
+                <Radio value="SLB Admin">SLB Admin</Radio>
               </Stack>
             </RadioGroup>
 
             {role === "Operator" && (
               <FormControl id="organizationName">
-              <FormLabel>Your Organization's Name</FormLabel>
-              <Input
-                type="organizationName"
-                value={organizationName}
-                onChange={(e) => {
-                  setOrganizationName(e.target.value);
-                }}
-              />
-            </FormControl>
+                <FormLabel>Your Organization's Name</FormLabel>
+                <Input
+                  type="organizationName"
+                  value={organizationName}
+                  onChange={(e) => {
+                    setOrganizationName(e.target.value);
+                  }}
+                />
+              </FormControl>
             )}
-
-            
 
             <Stack spacing={10}>
               <Stack

@@ -240,10 +240,10 @@ export default function TelemetryAnalysis() {
         return;
       }
 
-      if (jobStatus === 'Minted') {
+      if (jobStatus === 'Minted' || jobStatus === 'Ready for Minting') {
         toast({
           title: "Already minted",
-          description: "This job has already been verified and minted as a carbon credit.",
+          description: "This job is already ready for minting or has been minted.",
           status: "info",
           duration: 4000,
           isClosable: true,
@@ -311,10 +311,10 @@ export default function TelemetryAnalysis() {
       return;
     }
 
-    if (jobStatus === 'Minted') {
+    if (jobStatus === 'Minted' || jobStatus === 'Ready for Minting') {
       toast({
         title: "Upload not allowed",
-        description: "Cannot upload data to a minted job. The job has already been verified and minted as a carbon credit.",
+        description: "Cannot upload data to a job that is ready for minting or already minted.",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -382,7 +382,7 @@ export default function TelemetryAnalysis() {
       }),
       power_kw: record.power_kw ?? 0,
       flaring_m3: record.flaring_m3 ?? 0,
-      runtime_sec: record.runtime_sec ?? 0,
+      methane_ppm: record.methane_ppm ?? 0,
     }));
   };
 
@@ -414,9 +414,9 @@ export default function TelemetryAnalysis() {
         <Box>
           <HStack justify="space-between" mb={2}>
             <Heading mb={4}>Telemetry Analysis Dashboard</Heading>
-            {jobStatus === 'Minted' && (
+            {(jobStatus === 'Minted' || jobStatus === 'Ready for Minting') && (
               <Badge colorScheme="purple" fontSize="lg" px={4} py={2}>
-                ✓ Minted as Carbon Credit
+                Ready for Minting
               </Badge>
             )}
           </HStack>
@@ -477,9 +477,9 @@ export default function TelemetryAnalysis() {
               </Stat>
 
               <Stat p={6} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <StatLabel>Final Runtime</StatLabel>
+                <StatLabel>Final Methane PPM</StatLabel>
                 <StatNumber color="green.500">
-                  {telemetryData[telemetryData.length - 1]?.runtime_sec?.toFixed(0) || 'N/A'} sec
+                  {telemetryData[telemetryData.length - 1]?.methane_ppm?.toFixed(1) || 'N/A'} ppm
                 </StatNumber>
                 <StatHelpText>Latest measurement</StatHelpText>
               </Stat>
@@ -553,16 +553,16 @@ export default function TelemetryAnalysis() {
                 </ResponsiveContainer>
               </Box>
 
-              {/* Runtime Chart */}
+              {/* Methane PPM Chart */}
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <Text fontWeight="bold" mb={4}>Runtime (seconds)</Text>
+                <Text fontWeight="bold" mb={4}>Methane PPM</Text>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
-                    <Line type="monotone" dataKey="runtime_sec" stroke="#38a169" strokeWidth={2} />
+                    <Line type="monotone" dataKey="methane_ppm" stroke="#38a169" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               </Box>
@@ -598,12 +598,19 @@ export default function TelemetryAnalysis() {
           </Button>
 
           {/* Show minted status */}
-          {jobStatus === "Minted" && (
+          {jobStatus === 'Minted' || jobStatus === 'Ready for Minting' && (
             <Alert status="success" variant="subtle" borderRadius="md" maxW="400px">
               <AlertIcon />
-              This job has been verified and minted as a carbon credit
+              This job has been verified and marked for ready to mint as a carbon credit
             </Alert>
           )}
+
+          {jobStatus === 'Denied' && (
+            <Alert status="error" variant="subtle" borderRadius="md" maxW="400px">
+              <AlertIcon />
+              This job has been denied
+            </Alert>
+          )}  
 
           {/* Show verification options for completed jobs */}
           {jobStatus === "Completed" && !hasPendingRequest && (
@@ -638,6 +645,7 @@ export default function TelemetryAnalysis() {
               Mark Job as Complete
             </Button>
           )}
+
         </HStack>
 
         {/* Upload Modal */}
@@ -655,7 +663,7 @@ export default function TelemetryAnalysis() {
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
               </FormControl>
-              {jobStatus === 'Minted' && (
+              {(jobStatus === 'Minted' || jobStatus === 'Ready for Minting') && (
                 <Alert status="error" mt={4}>
                   <AlertIcon />
                   Cannot upload to a minted job
@@ -671,7 +679,7 @@ export default function TelemetryAnalysis() {
                 onClick={handleUpload}
                 isLoading={uploading}
                 loadingText="Uploading..."
-                isDisabled={jobStatus === 'Minted'}
+                isDisabled={jobStatus === 'Minted' || jobStatus === 'Ready for Minting'}
               >
                 Upload
               </Button>

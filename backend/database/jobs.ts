@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient.js';
 
-export type JobStatus = 'Active' | 'Completed' | 'Paused' | 'Minted';
+export type JobStatus = 'Active' | 'Completed' | 'Paused' | 'Ready for Minting' | 'Denied' | 'Minted'
 
 export async function addJob(job: {
   operatorID: number;
