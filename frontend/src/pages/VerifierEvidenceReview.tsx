@@ -150,7 +150,7 @@ export default function VerifierEvidenceReview() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: "Complete",
+          status: "Approved",
           verificationTimestamp: new Date().toISOString(),
         }),
       });
@@ -193,14 +193,14 @@ export default function VerifierEvidenceReview() {
 
     setActionLoading(true);
     try {
-      const response = await fetch(`${API}/pendingrequests/${request.requestID}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "Complete",
-          verificationTimestamp: new Date().toISOString(),
-        }),
-      });
+        const response = await fetch(`${API}/pendingrequests/${request.requestID}/status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                status: "Denied",
+                verificationTimestamp: new Date().toISOString(),
+            }),
+        });
 
       if (!response.ok) throw new Error("Failed to deny request");
 
@@ -276,8 +276,10 @@ export default function VerifierEvidenceReview() {
             colorScheme={
               request.status === "Pending"
                 ? "orange"
-                : request.status === "Complete"
+                : request.status === "Approved"
                 ? "green"
+                : request.status === "Denied"
+                ? "red"
                 : "yellow"
             }
           >
@@ -343,8 +345,10 @@ export default function VerifierEvidenceReview() {
                   colorScheme={
                     request.status === "Pending"
                       ? "orange"
-                      : request.status === "Complete"
+                      : request.status === "Approved"
                       ? "green"
+                      : request.status === "Denied"
+                      ? "red"
                       : "yellow"
                   }
                 >
@@ -556,7 +560,7 @@ export default function VerifierEvidenceReview() {
                 Review all telemetry evidence carefully before approving. Approval will:
               </Text>
               <Box as="ul" pl={4} fontSize="sm">
-                <li>Mark this job as "Minted"</li>
+                <li>Mark this job as "Ready for Minting"</li>
                 <li>Create a carbon credit token</li>
                 <li>Approve all telemetry data</li>
                 <li>Record this verification permanently</li>

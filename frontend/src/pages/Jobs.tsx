@@ -197,15 +197,18 @@ export default function JobsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Completed":
-        return { bg: "green.100", color: "green.800" };
-      case "Paused":
-        return { bg: "yellow.100", color: "yellow.800" };
-      case "Minted":
-        return { bg: "purple.100", color: "purple.800" };
-      case "Active":
-      default:
-        return { bg: "blue.100", color: "blue.800" };
+        case "Completed":
+            return { bg: "green.100", color: "green.800" };
+        case "Paused":
+            return { bg: "yellow.100", color: "yellow.800" };
+        case "Ready for Minting":
+        case "Minted":
+            return { bg: "purple.100", color: "purple.800" };
+        case "Denied":
+            return { bg: "red.100", color: "red.800" };
+        case "Active":
+        default:
+            return { bg: "blue.100", color: "blue.800" };
     }
   };
 
@@ -231,11 +234,12 @@ export default function JobsPage() {
           onChange={(e) => setStatus(e.target.value)}
           maxW="220px"
         >
-          <option value="all">All statuses</option>
-          <option value="Active">Active</option>
-          <option value="Completed">Completed</option>
-          <option value="Paused">Paused</option>
-          <option value="Minted">Minted</option>
+            <option value="all">All statuses</option>
+            <option value="Active">Active</option>
+            <option value="Completed">Completed</option>
+            <option value="Paused">Paused</option>
+            <option value="Ready for Minting">Ready for Minting</option>
+            <option value="Denied">Denied</option>
         </Select>
         <Button
           onClick={() => {

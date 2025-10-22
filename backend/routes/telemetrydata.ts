@@ -20,9 +20,9 @@ router.post('/', async (req, res) => {
         }
 
         // Prevent uploads to minted jobs
-        if (job.status === 'Minted') {
+        if (job.status === 'Minted' || job.status === 'Ready for Minting') {
             return res.status(403).json({ 
-                error: "Cannot upload telemetry data to a minted job. The job has already been verified and minted as a carbon credit." 
+                error: "Cannot upload telemetry data to a job that is ready for minting or already minted." 
             });
         }
 

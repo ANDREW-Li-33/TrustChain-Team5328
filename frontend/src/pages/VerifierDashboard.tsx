@@ -178,7 +178,7 @@ export default function VerifierDashboard() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            status: "Complete",
+            status: "Approved", // Change #1: Was "Complete"
             verificationTimestamp: new Date().toISOString(),
           }),
         }
@@ -195,7 +195,7 @@ export default function VerifierDashboard() {
 
       toast({
         title: "Request Approved",
-        description: "The request has been verified and marked as complete",
+        description: "The request has been verified and marked as Approved", // Change #3
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -224,14 +224,15 @@ export default function VerifierDashboard() {
       const response = await fetch(
         `${API}/pendingrequests/${selectedRequest.requestID}/status`,
         {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status: "Complete",
-            verificationTimestamp: new Date().toISOString(),
-          }),
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              status: "Denied",
+      
+          verificationTimestamp: new Date().toISOString(),
+            }),
         }
       );
 
@@ -272,7 +273,8 @@ export default function VerifierDashboard() {
 
   const pendingCount = requests.filter((r) => r.status === "Pending").length;
   const onHoldCount = requests.filter((r) => r.status === "On Hold").length;
-  const completeCount = requests.filter((r) => r.status === "Complete").length;
+    const approvedCount = requests.filter((r) => r.status === "Approved").length;
+  const deniedCount = requests.filter((r) => r.status === "Denied").length;
 
   if (loading) {
     return (
@@ -299,7 +301,7 @@ export default function VerifierDashboard() {
         <Heading size="lg">Verifier Dashboard</Heading>
 
         {/* summary */}
-        <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>
+        <SimpleGrid columns={{ base: 1, md: 5 }} spacing={4}>
           <Card>
             <CardBody>
               <Stat>
@@ -327,8 +329,16 @@ export default function VerifierDashboard() {
           <Card>
             <CardBody>
               <Stat>
-                <StatLabel>Completed</StatLabel>
-                <StatNumber color="green.500">{completeCount}</StatNumber>
+                <StatLabel>Approved</StatLabel>
+                <StatNumber color="green.500">{approvedCount}</StatNumber>
+              </Stat>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <Stat>
+                <StatLabel>Denied</StatLabel>
+                <StatNumber color="red.500">{deniedCount}</StatNumber>
               </Stat>
             </CardBody>
           </Card>
@@ -348,9 +358,10 @@ export default function VerifierDashboard() {
             maxW="200px"
           >
             <option value="all">All Statuses</option>
-            <option value="Pending">Pending</option>
+            <option value="Pending review">Pending</option>
             <option value="On Hold">On Hold</option>
-            <option value="Complete">Complete</option>
+            <option value="Approved">Approved</option>
+            <option value="Denied">Denied</option>
           </Select>
           <Button
             onClick={() => {
@@ -394,8 +405,10 @@ export default function VerifierDashboard() {
                       colorScheme={
                         request.status === "Pending"
                           ? "orange"
-                          : request.status === "Complete"
+                          : request.status === "Approved"
                           ? "green"
+                          : request.status === "Denied"
+                          ? "red"
                           : "yellow"
                       }
                     >
@@ -471,8 +484,10 @@ export default function VerifierDashboard() {
                         colorScheme={
                           selectedRequest?.status === "Pending"
                             ? "orange"
-                            : selectedRequest?.status === "Complete"
+                            : selectedRequest?.status === "Approved"
                             ? "green"
+                            : selectedRequest?.status === "Denied"
+                            ? "red"
                             : "yellow"
                         }
                       >
@@ -568,18 +583,16 @@ export default function VerifierDashboard() {
                   )}
                 </Box>
 
-                {selectedRequest?.status !== "Complete" && (
+                {selectedRequest?.status !== "Approved" && selectedRequest?.status !== "Denied" && (
                   <Alert status="warning" borderRadius="md">
                     <AlertIcon />
                     <Text fontSize="sm">
-                      Review all evidence carefully before approving. This
-                      action will mark the request as complete and approve
-                      carbon credits for minting.
+                      Review all evidence carefully before approving. This action will approve the request and set the job as 'Ready for Minting'
                     </Text>
                   </Alert>
                 )}
 
-                {selectedRequest?.status === "Complete" && (
+                {(selectedRequest?.status === "Approved" || selectedRequest?.status === "Denied") && (
                   <Alert status="info" borderRadius="md">
                     <AlertIcon />
                     <Text fontSize="sm">

@@ -47,7 +47,7 @@ export async function getRequests() {
 // used to update approved or denied requests as complete
 export async function updateRequestStatus(
   requestID: number,
-  newStatus: "Pending" | "On Hold" | "Complete",
+  newStatus: "Pending review" | "On Hold" | "Approved" | "Denied",
   verificationTimestamp?: string
 ) {
   const updateData: any = { status: newStatus };

@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     operator_id UUID REFERENCES users(id),
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'paused')),
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'paused', 'Ready for Minting', 'Denied', 'Minted')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -81,8 +81,7 @@ CREATE TABLE IF NOT EXISTS verification_requests (
     job_id TEXT NOT NULL REFERENCES jobs(job_id),
     aggregate_id UUID NOT NULL REFERENCES aggregates(id),
     evidence_hash TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'rejected')),
-    verifier_user_id UUID REFERENCES users(id),
+    status TEXT NOT NULL DEFAULT 'Pending review' CHECK (status IN ('Pending review', 'On Hold', 'Approved', 'Denied')),    verifier_user_id UUID REFERENCES users(id),
     verification_notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     verified_at TIMESTAMP WITH TIME ZONE
