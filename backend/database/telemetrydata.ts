@@ -50,7 +50,8 @@ export async function approveTelemetryData(entryID: number) {
     if (error) {
         console.error('Error approving telemetry data:', error);
         return null;
-    }  
+    }
+    return data
 }
 
 async function testConnection() {

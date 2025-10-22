@@ -145,18 +145,18 @@ router.put('/:id/status', async (req, res) => {
       }
 
       // If status is Complete, update the job status to Minted AND create token
-      if (status === 'Complete') {
-        console.log(`\n=== Processing verification approval for job ${request.jobID} ===`);
-        
-        // 1. Update job status to Minted
-        console.log(`Step 1: Minting job ${request.jobID}...`);
-        const jobUpdate = await updateJobStatus(request.jobID, 'Minted');
-        if (!jobUpdate) {
-          console.error("Failed to update job status to Minted");
-          return res.status(500).json({ error: "Failed to mint job" });
-        }
-        console.log(`Job ${request.jobID} successfully minted`);
 
+        if (status === 'Approved') {
+            console.log(`\n=== Processing verification approval for job ${request.jobID} ===`);
+            
+            // 1. Update job status to Ready for Minting
+            console.log(`Step 1: Setting job ${request.jobID} to 'Ready for Minting'...`);
+    const jobUpdate = await updateJobStatus(request.jobID, 'Ready for Minting');
+            if (!jobUpdate) {
+              console.error("Failed to update job status to Ready for Minting");
+    return res.status(500).json({ error: "Failed to update job" });
+            }
+            console.log(`Job ${request.jobID} successfully set to 'Ready for Minting'`);
         // 2. Get job details to find the owner
         console.log(`Step 2: Fetching job details...`);
         const job = await getJobByID(request.jobID);
@@ -194,6 +194,7 @@ router.put('/:id/status', async (req, res) => {
 
         // 6. Create token record
         console.log(`Step 5: Creating token record...`);
+        await updateJobStatus(request.jobID, 'Ready for Minting');
         const newToken = await addToken({
           ownerID: job.operatorID,
           jobID: request.jobID,
@@ -214,6 +215,15 @@ router.put('/:id/status', async (req, res) => {
         console.log(`   Status: ${newToken[0].status}`);
         console.log(`   CO2 Saved: ${co2Saved} tCO2e`);
         console.log(`=== Verification approval complete ===\n`);
+      } else if (status === 'Denied') {
+        // 1. Update job status to Denied
+        console.log(`Step 1: Setting job ${request.jobID} to 'Denied'...`);
+        const jobUpdate = await updateJobStatus(request.jobID, 'Denied');
+        if (!jobUpdate) {
+          console.error("Failed to update job status to Denied");
+          return res.status(500).json({ error: "Failed to update job" });
+        }
+        console.log(`Job ${request.jobID} successfully set to 'Denied'`);
       }
       
       res.status(200).json({ 

@@ -64,7 +64,7 @@ router.put('/:id/status', async (req, res) => {
     }
 
     // Validate status value
-    const validStatuses: JobStatus[] = ['Active', 'Completed', 'Paused', 'Minted'];
+    const validStatuses: JobStatus[] = ['Active', 'Completed', 'Paused', 'Ready for Minting', 'Denied', 'Minted'];
     if (!validStatuses.includes(status as JobStatus)) {
         return res.status(400).json({ error: "Invalid status value" });
     }
