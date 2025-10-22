@@ -5,6 +5,8 @@ import {
   Box, Container, Heading, Text, SimpleGrid, HStack, VStack, Input, Select, Button, Spinner, Alert, AlertIcon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, Badge, useDisclosure, useToast, Divider, Stat, StatLabel, StatNumber, Card, CardHeader, CardBody, CardFooter,
 } from "@chakra-ui/react";
 import { CheckIcon, CloseIcon } from "@chakra-ui/icons";
+import { getAuth, signOut } from "firebase/auth";
+import { app } from "../firebase/firebase";
 
 type PendingRequest = {
   requestID: number;
@@ -53,6 +55,7 @@ export default function VerifierDashboard() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const navigate = useNavigate();
+  const auth = getAuth(app);
 
   const [requests, setRequests] = useState<PendingRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
@@ -65,6 +68,25 @@ export default function VerifierDashboard() {
   const [statusFilter, setStatusFilter] = useState("Pending");
   const [searchQuery, setSearchQuery] = useState("");
   const [operatorDetails, setOperatorDetails] = useState<Operator | null>(null);
+
+  const handleSignOut = () => {
+    signOut(auth)
+      .then(() => {
+        console.log("User signed out successfully.");
+        navigate("/login");
+      })
+      .catch((error) => {
+        console.error("Error signing out:", error);
+        toast({
+          title: "Sign Out Error",
+          description: "Failed to sign out. Please try again.",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      });
+  };
+
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -248,7 +270,16 @@ export default function VerifierDashboard() {
   return (
     <Container maxW="container.xl" py={8}>
       <VStack spacing={6} align="stretch">
-        <Heading size="lg">Verifier Dashboard</Heading>
+        <HStack justify="space-between" align="center">
+          <Heading size="lg">Verifier Dashboard</Heading>
+          <Button
+            colorScheme="red"
+            variant="outline"
+            onClick={handleSignOut}
+          >
+            Sign Out
+          </Button>
+        </HStack>
 
         {/* summary */}
         <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4}>

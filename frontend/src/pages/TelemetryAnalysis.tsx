@@ -376,7 +376,7 @@ export default function TelemetryAnalysis() {
       }),
       power_kw: record.power_kw ?? 0,
       flaring_m3: record.flaring_m3 ?? 0,
-      runtime_sec: record.runtime_sec ?? 0,
+      methane_ppm: record.methane_ppm ?? 0,
     }));
   };
 
@@ -471,9 +471,9 @@ export default function TelemetryAnalysis() {
               </Stat>
 
               <Stat p={6} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <StatLabel>Final Runtime</StatLabel>
+                <StatLabel>Final Methane PPM</StatLabel>
                 <StatNumber color="green.500">
-                  {telemetryData[telemetryData.length - 1]?.runtime_sec?.toFixed(0) || 'N/A'} sec
+                  {telemetryData[telemetryData.length - 1]?.methane_ppm?.toFixed(1) || 'N/A'} ppm
                 </StatNumber>
                 <StatHelpText>Latest measurement</StatHelpText>
               </Stat>
@@ -547,16 +547,16 @@ export default function TelemetryAnalysis() {
                 </ResponsiveContainer>
               </Box>
 
-              {/* Runtime Chart */}
+              {/* Methane PPM Chart */}
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <Text fontWeight="bold" mb={4}>Runtime (seconds)</Text>
+                <Text fontWeight="bold" mb={4}>Methane PPM</Text>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
-                    <Line type="monotone" dataKey="runtime_sec" stroke="#38a169" strokeWidth={2} />
+                    <Line type="monotone" dataKey="methane_ppm" stroke="#38a169" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               </Box>
