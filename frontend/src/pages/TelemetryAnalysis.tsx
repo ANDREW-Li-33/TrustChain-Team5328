@@ -38,10 +38,16 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 interface TelemetryData {
   timestamp: string;
   payload_json?: {
-    power_kw: number;
-    runtime_sec: number;
-    flaring_m3: number;
+    power_kw?: number;
+    runtime_sec?: number;
+    flaring_m3?: number;
+    methane_ppm?: number;
   };
+  // Flattened optional properties for easier access in UI and processing
+  power_kw?: number;
+  runtime_sec?: number;
+  flaring_m3?: number;
+  methane_ppm?: number;
 }
 
 interface ToolSummary {
