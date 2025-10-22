@@ -604,7 +604,7 @@ export default function VerifierEvidenceReview() {
                 isDisabled={actionLoading}
                 size="lg"
               >
-                Approve & Mint
+                Approve and Mark Ready for Minting
               </Button>
             </>
           )}
