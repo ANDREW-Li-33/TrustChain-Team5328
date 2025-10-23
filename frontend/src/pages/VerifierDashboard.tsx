@@ -152,11 +152,7 @@ export default function VerifierDashboard() {
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between" align="center">
           <Heading size="lg">Verifier Dashboard</Heading>
-          <Button
-            colorScheme="red"
-            variant="outline"
-            onClick={handleSignOut}
-          >
+          <Button colorScheme="red" variant="outline" onClick={handleSignOut}>
             Sign Out
           </Button>
         </HStack>
@@ -219,7 +215,7 @@ export default function VerifierDashboard() {
             maxW="200px"
           >
             <option value="all">All Statuses</option>
-            <option value="Pending review">Pending</option>
+            <option value="Pending">Pending</option>
             <option value="On Hold">On Hold</option>
             <option value="Approved">Approved</option>
             <option value="Denied">Denied</option>
@@ -316,7 +312,6 @@ export default function VerifierDashboard() {
           </SimpleGrid>
         )}
       </VStack>
-
     </Container>
   );
 }
