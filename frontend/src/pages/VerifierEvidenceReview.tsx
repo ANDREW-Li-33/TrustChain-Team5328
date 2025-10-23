@@ -158,11 +158,11 @@ export default function VerifierEvidenceReview() {
       if (!updateResponse.ok) throw new Error("Failed to approve request");
 
       // Approve all telemetry data
-      for (const telemetry of telemetryData) {
-        await fetch(`${API}/telemetrydata/${telemetry.entryID}/approve`, {
-          method: "PUT",
-        });
-      }
+      // for (const telemetry of telemetryData) {
+      //   await fetch(`${API}/telemetrydata/${telemetry.entryID}/approve`, {
+      //     method: "PUT",
+      //   });
+      // }
 
       toast({
         title: "Request Approved",
@@ -371,7 +371,7 @@ export default function VerifierEvidenceReview() {
               </HStack>
               <HStack>
                 <Text fontWeight="bold" minW="150px">
-                  Request Date:
+                  Request Timestamp:
                 </Text>
                 <Text>{new Date(request.requestTimestamp).toLocaleString()}</Text>
               </HStack>
@@ -468,9 +468,6 @@ export default function VerifierEvidenceReview() {
                         {/* Summary Info */}
                         {data.metadata?.measurements && (
                           <Box p={4} bg="blue.50" borderRadius="md">
-                            <Text fontWeight="bold" mb={2}>
-                              Quick Summary:
-                            </Text>
                             <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4}>
                               <Box>
                                 <Text fontSize="sm" color="gray.600">
@@ -525,22 +522,6 @@ export default function VerifierEvidenceReview() {
                           </Box>
                         </Box>
 
-                        {/* Additional Info */}
-                        <Box p={3} bg="gray.50" borderRadius="md" fontSize="sm">
-                          <Text>
-                            <strong>Entry ID:</strong> {data.entryID}
-                          </Text>
-                          <Text>
-                            <strong>Job ID:</strong> {data.jobID}
-                          </Text>
-                          <Text>
-                            <strong>Upload Time:</strong> {new Date(data.timeUploaded).toISOString()}
-                          </Text>
-                          <Text>
-                            <strong>Approval Status:</strong>{" "}
-                            {data.Approved ? "✅ Approved" : "⏳ Pending"}
-                          </Text>
-                        </Box>
                       </VStack>
                     </AccordionPanel>
                   </AccordionItem>
@@ -549,25 +530,6 @@ export default function VerifierEvidenceReview() {
             )}
           </CardBody>
         </Card>
-
-        {/* Warning for Pending Requests */}
-        {canApprove && (
-          <Alert status="warning" borderRadius="md">
-            <AlertIcon />
-            <VStack align="start" spacing={1}>
-              <Text fontWeight="bold">Action Required</Text>
-              <Text fontSize="sm">
-                Review all telemetry evidence carefully before approving. Approval will:
-              </Text>
-              <Box as="ul" pl={4} fontSize="sm">
-                <li>Mark this job as "Ready for Minting"</li>
-                <li>Create a carbon credit token</li>
-                <li>Approve all telemetry data</li>
-                <li>Record this verification permanently</li>
-              </Box>
-            </VStack>
-          </Alert>
-        )}
 
         {/* Already Complete Notice */}
         {!canApprove && (
@@ -581,12 +543,7 @@ export default function VerifierEvidenceReview() {
 
         {/* Action Buttons */}
         <HStack justify="flex-end" spacing={4}>
-          <Button
-            variant="outline"
-            onClick={() => navigate("/verifier")}
-          >
-            Back to Dashboard
-          </Button>
+
           {canApprove && (
             <>
               <Button
@@ -625,10 +582,18 @@ export default function VerifierEvidenceReview() {
               <Alert status="warning">
                 <AlertIcon />
                 <Text fontSize="sm">
-                  This action will mint the job and create a carbon credit token.
-                  This cannot be undone.
-                </Text>
+                Review all telemetry evidence carefully before approving. Approval will:
+              </Text>
+
+
               </Alert>
+              <Box as="ul" pl={20} fontSize="sm">
+                <li>Mark this job as "Ready for Minting"</li>
+                <li>Create a carbon credit token</li>
+                <li>Approve all telemetry data</li>
+                <li>Record this verification permanently</li>
+              </Box>
+
             </VStack>
           </ModalBody>
           <ModalFooter>
@@ -654,8 +619,7 @@ export default function VerifierEvidenceReview() {
           <ModalCloseButton />
           <ModalBody>
             <Text>
-              Are you sure you want to deny this evidence package? The operator
-              will need to submit a new request.
+              Are you sure you want to deny this evidence package? This can not be undone.
             </Text>
           </ModalBody>
           <ModalFooter>
