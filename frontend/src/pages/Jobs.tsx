@@ -1,3 +1,5 @@
+// React page component
+
 import { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../context/authContext";
 import {
@@ -60,6 +62,7 @@ export default function JobsPage() {
   const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
   const [creating, setCreating] = useState(false);
 
+  // getting all jobs (for the current user) from the database
   const fetchJobs = async () => {
     if (!user) {
       setLoading(false);
@@ -71,17 +74,17 @@ export default function JobsPage() {
       const uRes = await fetch(`${API}/users`);
       const users: UserRow[] = await uRes.json();
 
+      // search the list of users to find the user that matches the logged in user's 
+      // firebaseUID or email
       const me =
         users.find((u) => String(u.firebaseUID) === String(user.uid)) ||
         users.find(
-          (u) =>
-            u.email &&
-            user.email &&
-            u.email.toLowerCase() === user.email.toLowerCase()
+          (u) => u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()
         );
 
       if (!me) throw new Error("No matching user in the DB");
 
+      
       const operatorID = me.userID;
       setMyOperatorID(operatorID);
 
@@ -97,11 +100,13 @@ export default function JobsPage() {
     }
   };
 
+
   useEffect(() => {
     fetchJobs();
   }, [API, user]);
 
-  // filtering
+  // filtering: useMemo hook to create a new array of filtered cards
+  // takes the full job list from state and applies teh q and status filters
   const filtered = useMemo(
     () =>
       jobs.filter((j) => {
@@ -153,6 +158,7 @@ export default function JobsPage() {
     setCreating(true);
 
     try {
+      // sending the backend request to create the job
       const response = await fetch(`${API}/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -221,7 +227,7 @@ export default function JobsPage() {
         </Button>
       </HStack>
 
-      {/* filtering */}
+      {/* searching and filtering */}
       <HStack gap={4} mb={4} align="center" flexWrap="wrap">
         <Input
           placeholder="Search jobID / operatorID / toolID"
@@ -253,6 +259,7 @@ export default function JobsPage() {
 
       {/* cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+        {/* notice that we use filtered, not the full jobs list */}
         {filtered.map((j) => {
           const statusColors = getStatusColor(j.status);
           return (
@@ -300,13 +307,14 @@ export default function JobsPage() {
 
       {!filtered.length && <Text mt={6}>No jobs match your filters.</Text>}
 
-      {/* create new job modal */}
+      {/* job creation */}
       <Modal isOpen={isOpen} onClose={onClose} size="md">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Create New Job</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
+            {/* inputting data */}
             <VStack spacing={4}>
               <FormControl isRequired>
                 <FormLabel>Job Title</FormLabel>
