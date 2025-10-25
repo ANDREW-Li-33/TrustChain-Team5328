@@ -6,6 +6,8 @@ import jobRoutes from "./routes/jobs";
 import pendingRequestRoutes from "./routes/pendingrequests";
 import telemetryDataRoutes from "./routes/telemetrydata";
 import tokenRoutes from "./routes/tokens";
+import listingRoutes from "./routes/listings";
+import transactionRoutes from "./routes/transactions";
 
 
 dotenv.config();
@@ -21,6 +23,8 @@ app.use("/jobs", jobRoutes);
 app.use("/pendingrequests", pendingRequestRoutes);
 app.use("/telemetrydata", telemetryDataRoutes);
 app.use("/tokens", tokenRoutes);
+app.use("/listngs", listingRoutes);
+app.use("/transactions", transactionRoutes);
 console.log("User routes mounted at /users");
 
 
