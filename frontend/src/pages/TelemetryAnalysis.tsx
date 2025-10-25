@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Context } from '../context/authContext';
 import { useParams } from 'react-router-dom';
+
 import {
   Box,
   Container,
@@ -32,7 +33,10 @@ import {
   FormLabel,
   Input,
   Badge,
+  IconButton,
+  Tooltip as ChakraToolTip
 } from '@chakra-ui/react';
+import { RepeatIcon } from '@chakra-ui/icons';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface TelemetryData {
@@ -587,10 +591,9 @@ export default function TelemetryAnalysis() {
 
         {/* Action Buttons */}
         <HStack justify="center" spacing={4} flexWrap="wrap">
-          <Button onClick={fetchTelemetryData} colorScheme="blue">
-            Refresh Data
-          </Button>
-
+        <ChakraToolTip label="Refresh Data" fontSize="md">
+          <IconButton onClick={fetchTelemetryData} colorScheme="blue" aria-label='Refresh Data' icon={<RepeatIcon />}/>
+          </ChakraToolTip>
           {/* Show minted status */}
           {jobStatus === 'Minted' || jobStatus === 'Ready for Minting' && (
             <Alert status="success" variant="subtle" borderRadius="md" maxW="400px">
@@ -621,7 +624,7 @@ export default function TelemetryAnalysis() {
 
           {/* Upload button only for active jobs */}
           {jobStatus === "Active" && (
-            <Button colorScheme="green" onClick={onOpen}>
+            <Button colorScheme="gray" onClick={onOpen}>
               Upload Data
             </Button>
           )}
@@ -635,7 +638,7 @@ export default function TelemetryAnalysis() {
 
           {/* Complete button for active/paused jobs */}
           {(jobStatus === "Active" || jobStatus === "Paused") && (
-            <Button colorScheme="red" onClick={() => setIsConfirmOpen(true)}>
+            <Button colorScheme="green" onClick={() => setIsConfirmOpen(true)}>
               Mark Job as Complete
             </Button>
           )}
