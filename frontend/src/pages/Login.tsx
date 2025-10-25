@@ -50,8 +50,10 @@ export default function LoginPage() {
           const users = await res.json();
           const me = users.find((u: any) => String(u.firebaseUID) === String(firebaseUID)) || users.find((u: any) => u.email && obj.user?.email && u.email.toLowerCase() === obj.user.email.toLowerCase());
           const role = me?.role?.toLowerCase?.();
+          console.log(role);
           if (role === "operator") nav("/jobs");
           else if (role === "verifier") nav("/verifier");
+          else if (role === "slb admin") nav("/jobs");
           else nav("/operator");
         } catch {
           nav("/");
