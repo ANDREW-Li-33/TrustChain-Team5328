@@ -114,7 +114,7 @@ export default function LoginPage() {
           p={8}
         >
           <Stack spacing={4}>
-            <FormControl id="email">
+            <FormControl id="email" isRequired>
               <FormLabel>Email Address</FormLabel>
               <Input
                 type="email"
@@ -124,7 +124,7 @@ export default function LoginPage() {
                 }}
               />
             </FormControl>
-            <FormControl id="password">
+            <FormControl id="password" isRequired>
               <FormLabel>Password</FormLabel>
               <Input
                 type="password"
