@@ -9,6 +9,8 @@ import { Protected } from "./pages/ProtectedPage";
 import TelemetryAnalysis from "./pages/TelemetryAnalysis";
 import NavBar from "./components/NavBar";
 import JobsPage from "./pages/Jobs";
+import CreditPortfolioPage from "./pages/CreditPortfolio";
+
 
 function App() {
   return (
@@ -42,6 +44,15 @@ function App() {
           <Protected>
             <NavBar />
             <JobsPage/>
+          </Protected>
+        }
+      />
+      <Route
+        path="/creditportfolio"
+        element={
+          <Protected>
+            <NavBar />
+            <CreditPortfolioPage/>
           </Protected>
         }
       />

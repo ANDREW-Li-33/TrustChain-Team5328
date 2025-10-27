@@ -284,6 +284,7 @@ export default function JobsPage() {
             </CardHeader>
             <CardBody pt={0}>
               <VStack align="start" spacing={2}>
+
                 <Text>
                   <strong>Job ID:</strong> {j.jobID}
                 </Text>

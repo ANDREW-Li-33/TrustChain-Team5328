@@ -57,7 +57,7 @@ export async function getTokenByID(id: number) {
 }
 
 export async function getTokensByOwnerID(operatorID: number) {
-    const { data, error } = await supabase.from('Tokens').select('*').eq('operatorID', operatorID);
+    const { data, error } = await supabase.from('Tokens').select('*').eq('ownerID', operatorID);
     if (error) {
         console.error('Error fetching Tokens by operator ID:', error);
         return null;
