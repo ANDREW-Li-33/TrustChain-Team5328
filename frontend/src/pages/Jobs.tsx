@@ -25,6 +25,9 @@ import {
   Card,
   CardHeader,
   CardBody,
+  Divider,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
 
@@ -63,10 +66,22 @@ export default function JobsPage() {
   const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // New admin filter states
+  const [recencyFilter, setRecencyFilter] = useState("all");
+  const [dateAfter, setDateAfter] = useState("");
+  const [dateBefore, setDateBefore] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("all");
+
   const [newJobToolID, setNewJobToolID] = useState("");
   const [newJobTitle, setNewJobTitle] = useState("");
   const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
   const [creating, setCreating] = useState(false);
+
+  // Determine if date filters are active (either dateAfter or dateBefore is set)
+  const isDateFilterActive = dateAfter !== "" || dateBefore !== "";
+  
+  // Determine if recency filter is active (not "all")
+  const isRecencyFilterActive = recencyFilter !== "all";
 
   // Fetch jobs and users
   const fetchJobs = async () => {
@@ -120,15 +135,86 @@ export default function JobsPage() {
   const getOperatorName = (operatorID: number | null) => {
     if (!operatorID) return "Unassigned";
     const operator = users.find((u) => u.userID === operatorID);
-    return operator?.organizationName || `${operatorID}`;
+    return operator?.organizationName || `User ${operatorID}`;
   };
 
-  // Filtering
+  // Get unique company names for filter dropdown
+  const uniqueCompanies = useMemo(() => {
+    const companies = new Set<string>();
+    jobs.forEach((job) => {
+      const companyName = getOperatorName(job.operatorID);
+      if (companyName !== "Unassigned") {
+        companies.add(companyName);
+      }
+    });
+    return Array.from(companies).sort();
+  }, [jobs, users]);
+
+  // Helper function to check if a date is within a recency period
+  const isWithinRecency = (dateString: string, recency: string): boolean => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+    switch (recency) {
+      case "today":
+        return diffDays < 1;
+      case "3days":
+        return diffDays <= 3;
+      case "week":
+        return diffDays <= 7;
+      case "month":
+        return diffDays <= 30;
+      case "quarter":
+        return diffDays <= 90;
+      case "year":
+        return diffDays <= 365;
+      case "all":
+      default:
+        return true;
+    }
+  };
+
+  // Helper function to check if a date is within a date range
+  const isWithinDateRange = (dateString: string, after: string, before: string): boolean => {
+    if (!after && !before) return true;
+    
+    const date = new Date(dateString);
+    
+    if (after) {
+      const afterDate = new Date(after);
+      afterDate.setHours(0, 0, 0, 0);
+      if (date < afterDate) return false;
+    }
+    
+    if (before) {
+      const beforeDate = new Date(before);
+      beforeDate.setHours(23, 59, 59, 999);
+      if (date > beforeDate) return false;
+    }
+    
+    return true;
+  };
+
+  // Enhanced filtering logic
   const filtered = useMemo(
     () =>
       jobs.filter((j) => {
+        // Status filter
         const matchesStatus = status === "all" || j.status === status;
+        
+        // Company filter (admin only)
         const operatorName = getOperatorName(j.operatorID);
+        const matchesCompany = !isAdmin || companyFilter === "all" || operatorName === companyFilter;
+        
+        // Recency filter (only applied if date filters are not active)
+        const matchesRecency = isDateFilterActive || recencyFilter === "all" || isWithinRecency(j.dateCreated, recencyFilter);
+        
+        // Date range filter (only applied if recency filter is not active)
+        const matchesDateRange = isRecencyFilterActive || isWithinDateRange(j.dateCreated, dateAfter, dateBefore);
+        
+        // Search query filter
         const matchesQ =
           !q ||
           String(j.jobID).includes(q) ||
@@ -136,9 +222,10 @@ export default function JobsPage() {
           operatorName.toLowerCase().includes(q.toLowerCase()) ||
           String(j.operatorID ?? "").includes(q) ||
           String(j.toolID).includes(q);
-        return matchesStatus && matchesQ;
+        
+        return matchesStatus && matchesCompany && matchesRecency && matchesDateRange && matchesQ;
       }),
-    [jobs, q, status, users]
+    [jobs, q, status, recencyFilter, dateAfter, dateBefore, companyFilter, users, isAdmin, isDateFilterActive, isRecencyFilterActive]
   );
 
   const handleCreateJob = async () => {
@@ -195,6 +282,15 @@ export default function JobsPage() {
     }
   };
 
+  const handleResetFilters = () => {
+    setQ("");
+    setStatus("all");
+    setRecencyFilter("all");
+    setDateAfter("");
+    setDateBefore("");
+    setCompanyFilter("all");
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Completed":
@@ -209,6 +305,19 @@ export default function JobsPage() {
       case "Active":
       default:
         return "blue";
+    }
+  };
+
+  // Helper function to get display text for recency filter
+  const getRecencyDisplayText = (recency: string): string => {
+    switch (recency) {
+      case "today": return "Today";
+      case "3days": return "Last 3 days";
+      case "week": return "Last 7 days";
+      case "month": return "Last 30 days";
+      case "quarter": return "Last 90 days";
+      case "year": return "Last year";
+      default: return "";
     }
   };
 
@@ -228,35 +337,150 @@ export default function JobsPage() {
         )}
       </HStack>
 
-      {/* Search and filter */}
-      <HStack gap={4} mb={4} align="center" flexWrap="wrap">
-        <Input
-          placeholder="Search by Job ID, Title, Operator, Tool ID..."
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          maxW="400px"
-        />
-        <Select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          maxW="220px"
-        >
-          <option value="all">All statuses</option>
-          <option value="Active">Active</option>
-          <option value="Completed">Completed</option>
-          <option value="Paused">Paused</option>
-          <option value="Ready for Minting">Ready for Minting</option>
-          <option value="Denied">Denied</option>
-        </Select>
-        <Button
-          onClick={() => {
-            setQ("");
-            setStatus("all");
-          }}
-        >
-          Reset
-        </Button>
-      </HStack>
+      {/* Search and filter section */}
+      <VStack align="stretch" spacing={4} mb={6}>
+        {/* Basic filters row */}
+        <Wrap spacing={3} align="center">
+          <WrapItem>
+            <Input
+              placeholder="Search by Job ID, Title, Operator, Tool ID..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              minW="300px"
+              maxW="400px"
+            />
+          </WrapItem>
+          
+          <WrapItem>
+            <Select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              w="220px"
+            >
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Completed">Completed</option>
+              <option value="Paused">Paused</option>
+              <option value="Ready for Minting">Ready for Minting</option>
+              <option value="Denied">Denied</option>
+            </Select>
+          </WrapItem>
+          
+          <WrapItem>
+            <Button onClick={handleResetFilters} variant="outline">
+              Reset All Filters
+            </Button>
+          </WrapItem>
+        </Wrap>
+
+        {/* Admin-only advanced filters */}
+        {isAdmin && (
+          <>
+            <Divider />
+            <Text fontWeight="semibold" color="gray.600">
+              Admin Filters
+            </Text>
+            
+            <Wrap spacing={3} align="center">
+              {/* Recency filter - only show if date filters are not active */}
+              {!isDateFilterActive && (
+                <WrapItem>
+                  <FormControl>
+                    <FormLabel fontSize="sm" mb={1}>Recency</FormLabel>
+                    <Select
+                      value={recencyFilter}
+                      onChange={(e) => setRecencyFilter(e.target.value)}
+                      w="180px"
+                    >
+                      <option value="all">All time</option>
+                      <option value="today">Today</option>
+                      <option value="3days">Last 3 days</option>
+                      <option value="week">Last 7 days</option>
+                      <option value="month">Last 30 days</option>
+                      <option value="quarter">Last 90 days</option>
+                      <option value="year">Last year</option>
+                    </Select>
+                  </FormControl>
+                </WrapItem>
+              )}
+
+              {/* Date range filters - only show if recency filter is not active */}
+              {!isRecencyFilterActive && (
+                <>
+                  <WrapItem>
+                    <FormControl>
+                      <FormLabel fontSize="sm" mb={1}>Created After Date</FormLabel>
+                      <Input
+                        type="date"
+                        value={dateAfter}
+                        onChange={(e) => setDateAfter(e.target.value)}
+                        w="200px"
+                      />
+                    </FormControl>
+                  </WrapItem>
+
+                  <WrapItem>
+                    <FormControl>
+                      <FormLabel fontSize="sm" mb={1}>Created Before Date</FormLabel>
+                      <Input
+                        type="date"
+                        value={dateBefore}
+                        onChange={(e) => setDateBefore(e.target.value)}
+                        w="200px"
+                      />
+                    </FormControl>
+                  </WrapItem>
+                </>
+              )}
+
+              {/* Company name filter - always visible */}
+              <WrapItem>
+                <FormControl>
+                  <FormLabel fontSize="sm" mb={1}>Company</FormLabel>
+                  <Select
+                    value={companyFilter}
+                    onChange={(e) => setCompanyFilter(e.target.value)}
+                    w="220px"
+                  >
+                    <option value="all">All companies</option>
+                    {uniqueCompanies.map((company) => (
+                      <option key={company} value={company}>
+                        {company}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              </WrapItem>
+            </Wrap>
+          </>
+        )}
+      </VStack>
+
+      {/* Active filters summary */}
+      {isAdmin && (
+        <HStack mb={4} flexWrap="wrap" spacing={2}>
+          {isRecencyFilterActive && (
+            <Badge colorScheme="blue" px={2} py={1}>
+              {getRecencyDisplayText(recencyFilter)}
+            </Badge>
+          )}
+          {dateAfter && (
+            <Badge colorScheme="green" px={2} py={1}>
+              After: {new Date(dateAfter).toLocaleDateString()}
+            </Badge>
+          )}
+          {dateBefore && (
+            <Badge colorScheme="green" px={2} py={1}>
+              Before: {new Date(dateBefore).toLocaleDateString()}
+            </Badge>
+          )}
+          {companyFilter !== "all" && (
+            <Badge colorScheme="orange" px={2} py={1}>
+              Company: {companyFilter}
+            </Badge>
+          )}
+        </HStack>
+      )}
 
       {/* Job cards - styled like verifier dashboard */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
@@ -284,10 +508,14 @@ export default function JobsPage() {
             </CardHeader>
             <CardBody pt={0}>
               <VStack align="start" spacing={2}>
-
                 <Text>
                   <strong>Job ID:</strong> {j.jobID}
                 </Text>
+                {isAdmin && (
+                  <Text>
+                    <strong>Company:</strong> {getOperatorName(j.operatorID)}
+                  </Text>
+                )}
                 <Text>
                   <strong>Operator ID:</strong> {j.operatorID ?? "Unassigned"}
                 </Text>
@@ -303,7 +531,16 @@ export default function JobsPage() {
         ))}
       </SimpleGrid>
 
-      {!filtered.length && <Text mt={6}>No jobs match your filters.</Text>}
+      {!filtered.length && (
+        <Box textAlign="center" py={10}>
+          <Text fontSize="lg" color="gray.500">
+            No jobs match your filters.
+          </Text>
+          <Button mt={4} onClick={handleResetFilters} variant="outline">
+            Clear Filters
+          </Button>
+        </Box>
+      )}
 
       {/* Create job modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="md">
