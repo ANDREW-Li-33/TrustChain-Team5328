@@ -25,6 +25,7 @@ export default function RegistrationPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState("Operator");
   const [organizationName, setOrganizationName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,6 +41,17 @@ export default function RegistrationPage() {
         description: "Please enter both email and password",
         status: "error",
         duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: "Registration Failed",
+        description: "Passwords don't match",
+        status: "error",
+        duration: 5000,
         isClosable: true,
       });
       return;
@@ -100,6 +112,7 @@ export default function RegistrationPage() {
 
           if (role === "Operator") nav("/jobs");
           else if (role === "Verifier") nav("/verifier");
+          else if (role === "Buyer") nav("/tokens");
           else nav("/operator");
         }
       );
@@ -166,6 +179,16 @@ export default function RegistrationPage() {
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
+                }}
+              />
+            </FormControl>
+            <FormControl id="confirmPassword" isRequired>
+              <FormLabel>Confirm Password</FormLabel>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
                 }}
               />
             </FormControl>
