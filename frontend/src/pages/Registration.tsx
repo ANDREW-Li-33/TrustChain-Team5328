@@ -179,7 +179,7 @@ export default function RegistrationPage() {
               </Stack>
             </RadioGroup>
 
-            {role === "Operator" && (
+            {(role === "Operator" || role === "Buyer") && (
               <FormControl id="organizationName" isRequired>
                 <FormLabel>Your Organization's Name</FormLabel>
                 <Input

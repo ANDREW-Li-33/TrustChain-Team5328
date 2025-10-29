@@ -16,7 +16,10 @@ import { useState } from "react";
 import { app } from "../firebase/firebase";
 import { Link, useNavigate } from "react-router-dom";
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL || "http://localhost:5050";
+const API_BASE =
+  (import.meta as any).env?.VITE_API_BASE_URL ||
+  (import.meta as any).env?.VITE_API_URL ||
+  "http://localhost:5050";
 
 export default function LoginPage() {
   const auth = getAuth(app);
@@ -29,7 +32,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: "Validation Error",
@@ -43,26 +46,38 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password).then(async (obj) => {
-        const firebaseUID = obj.user?.uid;
-        try {
-          const res = await fetch(`${API_BASE}/users`);
-          const users = await res.json();
-          const me = users.find((u: any) => String(u.firebaseUID) === String(firebaseUID)) || users.find((u: any) => u.email && obj.user?.email && u.email.toLowerCase() === obj.user.email.toLowerCase());
-          const role = me?.role?.toLowerCase?.();
-          console.log(role);
-          if (role === "operator") nav("/jobs");
-          else if (role === "verifier") nav("/verifier");
-          else if (role === "slb admin") nav("/jobs");
-          else nav("/operator");
-        } catch {
-          nav("/");
+      await signInWithEmailAndPassword(auth, email, password).then(
+        async (obj) => {
+          const firebaseUID = obj.user?.uid;
+          try {
+            const res = await fetch(`${API_BASE}/users`);
+            const users = await res.json();
+            const me =
+              users.find(
+                (u: any) => String(u.firebaseUID) === String(firebaseUID)
+              ) ||
+              users.find(
+                (u: any) =>
+                  u.email &&
+                  obj.user?.email &&
+                  u.email.toLowerCase() === obj.user.email.toLowerCase()
+              );
+            const role = me?.role?.toLowerCase?.();
+            console.log(role);
+            if (role === "operator") nav("/jobs");
+            else if (role === "verifier") nav("/verifier");
+            else if (role === "slb admin") nav("/jobs");
+            else if (role === "buyer") nav("/tokens");
+            else nav("/operator");
+          } catch {
+            nav("/");
+          }
         }
-      });
+      );
     } catch (e: any) {
       console.error("Login error:", e);
       let errorMessage = "Login failed. Please try again.";
-      
+
       if (e.code === "auth/user-not-found") {
         errorMessage = "No account found with this email address.";
       } else if (e.code === "auth/wrong-password") {
@@ -70,21 +85,25 @@ export default function LoginPage() {
       } else if (e.code === "auth/invalid-email") {
         errorMessage = "Invalid email address format.";
       } else if (e.code === "auth/user-disabled") {
-        errorMessage = "This account has been disabled. Please contact support.";
+        errorMessage =
+          "This account has been disabled. Please contact support.";
       } else if (e.code === "auth/email-already-in-use") {
-        errorMessage = "This email is already registered. Try logging in instead.";
+        errorMessage =
+          "This email is already registered. Try logging in instead.";
       } else if (e.code === "auth/weak-password") {
-        errorMessage = "Password is too weak. Please choose a stronger password.";
+        errorMessage =
+          "Password is too weak. Please choose a stronger password.";
       } else if (e.code === "auth/too-many-requests") {
         errorMessage = "Too many failed attempts. Please try again later.";
       } else if (e.code === "auth/network-request-failed") {
         errorMessage = "Network error. Please check your connection.";
       } else if (e.code === "auth/invalid-credential") {
-        errorMessage = "Invalid email or password. Please check your credentials.";
+        errorMessage =
+          "Invalid email or password. Please check your credentials.";
       } else if (e.code === "auth/operation-not-allowed") {
         errorMessage = "Email/password authentication is not enabled.";
       }
-      
+
       toast({
         title: "Login Failed",
         description: errorMessage,
