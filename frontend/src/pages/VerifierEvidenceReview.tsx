@@ -36,6 +36,10 @@ import {
   ModalFooter,
   ModalCloseButton,
   useDisclosure,
+  Input,
+  FormControl,
+  FormLabel,
+  FormHelperText
 } from "@chakra-ui/react";
 import { CheckIcon, CloseIcon, ArrowBackIcon } from "@chakra-ui/icons";
 
@@ -96,6 +100,7 @@ export default function VerifierEvidenceReview() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quality, setQuality] = useState<number>(0);
 
   useEffect(() => {
     fetchEvidencePackage();
@@ -152,6 +157,7 @@ export default function VerifierEvidenceReview() {
         body: JSON.stringify({
           status: "Approved",
           verificationTimestamp: new Date().toISOString(),
+          quality: quality,
         }),
       });
 
@@ -593,6 +599,22 @@ export default function VerifierEvidenceReview() {
                 <li>Approve all telemetry data</li>
                 <li>Record this verification permanently</li>
               </Box>
+
+              <FormControl mt={4} isRequired>
+                <FormLabel>Quality Score</FormLabel>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  value={quality}
+                  onChange={(e) => setQuality(Number(e.target.value))}
+                  placeholder="Enter quality score (0–100)"
+                />
+                <FormHelperText>
+                  Assign a quality score for the verified credits.
+                </FormHelperText>
+              </FormControl>
 
             </VStack>
           </ModalBody>

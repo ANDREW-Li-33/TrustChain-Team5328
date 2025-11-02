@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient.js';
 
-export type TokenStatus = 'Minted' | 'Retired' | 'Ready for Minting'
+export type TokenStatus = 'Minted' | 'Retired' | 'On The Marketplace'
 
 export async function addToken(currToken: {
   ownerID: number;
@@ -8,9 +8,11 @@ export async function addToken(currToken: {
   quality: number;
   status: 'Minted' | 'Retired' | 'Ready for Minting';
   mintedAt?: string;
-  retiredAt?: string;
+  retiredAt?: string | null;
   metadata: JSON;
   blockchainHash?: number;
+  creditProportion: number;
+  tokenHash: string;
 }) {
   const { data, error } = await supabase
     .from('Tokens')
@@ -19,11 +21,13 @@ export async function addToken(currToken: {
         ownerID: currToken.ownerID,
         jobID: currToken.jobID,
         quality: currToken.quality,
-        status: currToken.status || 'Ready for Minting',
+        status: currToken.status || 'Minted',
         mintedAt: currToken.mintedAt || null, // defaults to null, will change when minted
         retiredAt: currToken.retiredAt || null, // defaults to null, will change when retired
         metadata: currToken.metadata,
         blockchainHash: currToken.blockchainHash || null, // defaults to null, will change when minted
+        creditProportion: currToken.creditProportion || 1,
+        tokenHash: currToken.tokenHash,
       },
     ])
     .select(); // return the inserted row(s)
@@ -65,6 +69,59 @@ export async function getTokensByOwnerID(operatorID: number) {
     return data;
 }
 
+export async function getTokensGroupedByOwner(ownerID: number) {
+  const { data, error } = await supabase
+    .from('Tokens')
+    .select('jobID, status, quality, mintedAt, retiredAt, creditProportion')
+    .eq('ownerID', ownerID);
+
+  if (error) {
+    console.error('Error fetching grouped tokens:', error);
+    return null;
+  }
+
+  const groups: Record<string, any[]> = {};
+
+  // Group by jobID and status
+  for (const t of data) {
+    const key = `${t.jobID}_${t.status}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  }
+
+  // Build the result summary per group
+  const groupedTokens = Object.entries(groups).map(([key, tokens]) => {
+    const [jobID, status] = key.split('_');
+
+    // Sum creditProportions
+    const totalCredits = tokens.reduce((a, t) => a + (t.creditProportion || 0), 0);
+
+    // Use consistent fields
+    const quality = tokens[0].quality;
+    const mintedAt = tokens[0].mintedAt || null;
+
+    // RetiredAt = latest retiredAt among tokens, if any are retired
+    const retiredDates = tokens
+      .map(t => t.retiredAt)
+      .filter(date => date !== null);
+    const retiredAt = retiredDates.length
+      ? retiredDates.sort().slice(-1)[0] // get latest
+      : null;
+
+    return {
+      jobID: Number(jobID),
+      status,
+      totalCredits,
+      quality,
+      mintedAt,
+      retiredAt,
+    };
+  });
+
+  return groupedTokens;
+}
+
+
 export async function updateTokenStatus(tokenID: number, newStatus: TokenStatus) {
   if (newStatus == 'Minted') {
     const { data, error } = await supabase.from('Tokens').update({ status: newStatus, mintedAt: new Date().toISOString }).eq('tokenID', tokenID).select();
@@ -89,7 +146,7 @@ export async function updateTokenStatus(tokenID: number, newStatus: TokenStatus)
 }
 
 export async function updateOwnerOfToken(tokenID: number, newOwnerID: number) {
-  const {data, error } = await supabase.from('Tokens').update({ ownerID: newOwnerID }).eq('tokenID', tokenID).select();
+  const {data, error } = await supabase.from('Tokens').update({ ownerID: newOwnerID, status: 'Minted' }).eq('tokenID', tokenID).select();
   if (error) {
         console.error('Error updating token owner:', error);
         return null;
@@ -109,4 +166,18 @@ async function testConnection() {
   }
 }
 
-testConnection();
+async function testGetTokensGroupedByOwner() {
+  const ownerID = 67; // ← change to match a real owner in your DB
+  const grouped = await getTokensGroupedByOwner(ownerID);
+
+  if (grouped) {
+    console.log(`Grouped tokens for ownerID ${ownerID}:`);
+    console.log(JSON.stringify(grouped, null, 2));
+  } else {
+    console.log('No tokens found or error occurred.');
+  }
+}
+
+
+
+testGetTokensGroupedByOwner();

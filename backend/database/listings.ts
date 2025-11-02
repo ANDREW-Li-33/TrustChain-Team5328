@@ -1,35 +1,74 @@
 import { supabase } from '../supabaseClient.js';
 import { updateOwnerOfToken } from './tokens';
-import { addTransaction } from './transactions';
+import { getTokensByListingID } from './listingoftokens'
 
 export async function addListing(listing: {
-  tokenID: number;
-  ownerID: number;
+  tokenIDs: number[]; 
+  sellerID: number;
   Price: number;
-  Status: 'Active' | 'Inactive';
-  Timestamp: string;
+  Status?: 'Active' | 'Complete';
+  CreatedAt?: string;
 }) {
-  const { data, error } = await supabase
-    .from('Listings')
-    .insert([
-      {
-        tokenID: listing.tokenID,
-        ownerID: listing.ownerID,
-        Price: listing.Price,
-        Status: listing.Status || 'Active',
-        Timestamp: listing.Timestamp || new Date().toISOString()
-      },
-    ])
-    .select(); // return the inserted row(s)
+  try {
+    const { data: listingData, error: listingError } = await supabase
+      .from('Listings')
+      .insert([
+        {
+          sellerID: listing.sellerID,
+          Price: listing.Price,
+          Status: listing.Status || 'Active',
+          CreatedAt: listing.CreatedAt || new Date().toISOString(),
+        },
+      ])
+      .select('listingID');
 
-  if (error) {
-    console.error('Error inserting Listing:', error);
+    if (listingError || !listingData?.length) {
+      console.error('Error inserting Listing:', listingError);
+      return null;
+    }
+
+    const listingID = listingData[0].listingID;
+    console.log('Created listing ${listingID}');
+
+    const tokenPairs = listing.tokenIDs.map(tokenID => ({
+      listingID,
+      tokenID,
+    }));
+
+    const { error: joinError } = await supabase
+      .from('listingOfTokens')
+      .insert(tokenPairs);
+
+    if (joinError) {
+      console.error('Error inserting ListingTokens:', joinError);
+      return null;
+    }
+
+    const { error: tokenUpdateError } = await supabase
+      .from('Tokens')
+      .update({ status: 'On The Marketplace' })
+      .in('tokenID', listing.tokenIDs);
+
+    if (tokenUpdateError) {
+      console.error('Error updating token statuses:', tokenUpdateError);
+    }
+
+    console.log('Linked tokens ${listing.tokenIDs.join(', ')} to listing ${listingID}');
+
+    return {
+      listingID,
+      sellerID: listing.sellerID,
+      tokenIDs: listing.tokenIDs,
+      Price: listing.Price,
+      Status: listing.Status || 'Active',
+    };
+
+  } catch (err) {
+    console.error('Error in addListing:', err);
     return null;
   }
-
-  console.log('Inserted Listing:', data);
-  return data;
 }
+
 
 export async function getActiveListings() {
   const { data, error } = await supabase.from('Listings').select('*').eq('Status', 'Active');
@@ -86,23 +125,7 @@ export async function getListingsInQualityRange(maxQuality: number, minQuality: 
   return data;
 }
 
-export async function deleteListing(listingID: number) {
-  const { data, error } = await supabase
-    .from('Listings')
-    .delete()
-    .eq('listingID', listingID)
-    .select();
-
-  if (error) {
-    console.error('Error deleting listing:', error);
-    return null;
-  }
-
-  console.log(`Deleted listing ${listingID}`);
-  return data;
-}
-
-export async function changeListingStatus(listingID: number, newStatus: 'Active' | 'Inactive') {
+export async function changeListingStatus(listingID: number, newStatus: 'Active' | 'Complete') {
   const { data, error } = await supabase
     .from('Listings')
     .update({ Status: newStatus })
@@ -118,31 +141,59 @@ export async function changeListingStatus(listingID: number, newStatus: 'Active'
   return data;
 }
 
-export async function completeListing(listingID: number, tokenID: number, newOwner: number, oldOwner: number, priceSold: number) {
-    try {
-      const updatedToken = await updateOwnerOfToken(tokenID, newOwner);
-      if (!updatedToken) {
-        console.log('Error in listings API complete listing, error 1');
-        return null;
-      }
-
-      const currTransaction = await addTransaction({tokenID: tokenID, buyerID: newOwner, sellerID: oldOwner, Price: priceSold, Timestamp: new Date().toISOString()});
-      if (!currTransaction) {
-        console.log('Failure adding a transaction after completing the listing, error 2 in api complete listing.');
-        return null;
-      }
-
-      const deleted = await deleteListing(listingID);
-      if (!deleted) {
-        console.log('Error deleting listing in completeListing API method');
-        return null;
-      }
-      return {currTransaction, updatedToken, deleted};
-    } catch (err) {
-      console.log('weird error in complete listing');
+export async function completeListing(listingID: number, newOwner: number, oldOwner: number, priceSold: number) {
+  try {
+    // Step 1: Get all tokenIDs associated with this listing
+    const tokenLinks = await getTokensByListingID(listingID);
+    if (!tokenLinks || tokenLinks.length === 0) {
+      console.log(`No tokens found for listing ${listingID}`);
       return null;
     }
+
+    const tokenIDs = tokenLinks.map(t => t.tokenID);
+
+    // Step 2: Update each token’s owner and status
+    const updatedTokens = [];
+    for (const tokenID of tokenIDs) {
+      const updatedToken = await updateOwnerOfToken(tokenID, newOwner);
+      if (updatedToken) {
+        updatedTokens.push(updatedToken);
+      } else {
+        console.warn(`Failed to update token ${tokenID}`);
+      }
+    }
+
+    // Step 3: Update the listing itself
+    const { data: updatedListing, error: updateError } = await supabase
+      .from('Listings')
+      .update({
+        Status: 'Complete',
+        buyerID: newOwner,
+        completedAt: new Date().toISOString(),
+        Price: priceSold
+      })
+      .eq('listingID', listingID)
+      .select();
+
+    if (updateError) {
+      console.error('Error updating listing status to Complete:', updateError);
+      return null;
+    }
+
+    console.log(`✅ Completed listing ${listingID}. Updated tokens:`, updatedTokens);
+
+    return {
+      listing: updatedListing?.[0],
+      tokensUpdated: updatedTokens.length,
+      tokenIDs
+    };
+
+  } catch (err) {
+    console.error('Error in completeListing:', err);
+    return null;
+  }
 }
+
 
 export async function getListingsByDateRange(startDate: string | null, endDate: string | null) {
   let query = supabase.from('Listings').select('*');
@@ -176,4 +227,3 @@ async function testConnection() {
   }
 }
 
-testConnection();

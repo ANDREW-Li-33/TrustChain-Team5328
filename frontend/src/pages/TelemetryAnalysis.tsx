@@ -55,13 +55,13 @@ interface TelemetryData {
     power_kw?: number;
     runtime_sec?: number;
     flaring_m3?: number;
-    methane_ppm?: number;
+    TotalCO2Saved?: number;
   };
   // Flattened optional properties for easier access in UI and processing
   power_kw?: number;
   runtime_sec?: number;
   flaring_m3?: number;
-  methane_ppm?: number;
+  TotalCO2Saved?: number;
 }
 
 interface ToolSummary {
@@ -90,7 +90,7 @@ type UserRow = {
   organizationName?: string | null;
 };
 
-type JobStatus = 'Active' | 'Completed' | 'Paused' | 'Minted';
+type JobStatus = 'Active' | 'Completed' | 'Paused' | 'Minted' | 'Denied';
 
 type TelemetryDataRow = {
   entryID: number;
@@ -220,7 +220,7 @@ export default function TelemetryAnalysis() {
           power_kw: r.metadata?.measurements?.power_kw,
           runtime_sec: r.metadata?.measurements?.runtime_sec,
           flaring_m3: r.metadata?.measurements?.flaring_m3,
-          methane_ppm: r.metadata?.measurements?.methane_ppm,
+          TotalCO2Saved: r.metadata?.measurements?.TotalCO2Saved,
         }));
         setTelemetryData(mapped);
       }
@@ -316,7 +316,7 @@ export default function TelemetryAnalysis() {
         return;
       }
 
-      if (jobStatus === 'Minted' || jobStatus === 'Ready for Minting') {
+      if (jobStatus === 'Minted') {
         toast({
           title: "Already minted",
           description: "This job is already ready for minting or has been minted.",
@@ -387,7 +387,7 @@ export default function TelemetryAnalysis() {
       return;
     }
 
-    if (jobStatus === 'Minted' || jobStatus === 'Ready for Minting') {
+    if (jobStatus === 'Minted') {
       toast({
         title: "Upload not allowed",
         description: "Cannot upload data to a job that is ready for minting or already minted.",
@@ -475,7 +475,7 @@ export default function TelemetryAnalysis() {
       }),
       power_kw: record.power_kw ?? 0,
       flaring_m3: record.flaring_m3 ?? 0,
-      methane_ppm: record.methane_ppm ?? 0,
+      TotalCO2Saved: record.TotalCO2Saved ?? 0,
     }));
   };
 
@@ -565,9 +565,9 @@ export default function TelemetryAnalysis() {
               </Stat>
 
               <Stat p={6} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <StatLabel>Final Methane PPM</StatLabel>
+                <StatLabel>Final Tons of CO2 Saved</StatLabel>
                 <StatNumber color="green.500">
-                  {telemetryData[telemetryData.length - 1]?.methane_ppm?.toFixed(1) || 'N/A'} ppm
+                  {telemetryData[telemetryData.length - 1]?.TotalCO2Saved?.toFixed(1) || 'N/A'} Tons
                 </StatNumber>
                 <StatHelpText>Latest measurement</StatHelpText>
               </Stat>
@@ -609,14 +609,14 @@ export default function TelemetryAnalysis() {
               </Box>
 
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <Text fontWeight="bold" mb={4}>Methane PPM</Text>
+                <Text fontWeight="bold" mb={4}>Tons of CO2 Saved</Text>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
-                    <Line type="monotone" dataKey="methane_ppm" stroke="#38a169" strokeWidth={2} />
+                    <Line type="monotone" dataKey="TotalCO2Saved" stroke="#38a169" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               </Box>
@@ -789,7 +789,7 @@ export default function TelemetryAnalysis() {
             <IconButton onClick={fetchTelemetryData} colorScheme="blue" aria-label='Refresh Data' icon={<RepeatIcon />}/>
           </ChakraToolTip>
           
-          {jobStatus === 'Minted' || jobStatus === 'Ready for Minting' && (
+          {jobStatus === 'Minted' && (
             <Alert status="success" variant="subtle" borderRadius="md" maxW="400px">
               <AlertIcon />
               This job has been verified and marked for ready to mint as a carbon credit

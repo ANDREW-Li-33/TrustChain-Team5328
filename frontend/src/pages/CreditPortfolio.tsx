@@ -32,6 +32,8 @@ type Token = {
   retiredAt: string | null;
   metadata: object;
   blockchainHash: string;
+  creditProportion: number;
+  tokenHash: string;
 };
 
 type UserRow = {
@@ -50,6 +52,7 @@ export default function CreditPortfolioPage() {
 
   const { user } = useContext<any>(Context);
   const toast = useToast();
+  const [groupedTokens, setGroupedTokens] = useState<any[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,66 +62,58 @@ export default function CreditPortfolioPage() {
   const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
 
   // Fetch tokens and users
-  const fetchTokens = async () => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+  const fetchGroupedTokens = async () => {
+  if (!user) {
+    setLoading(false);
+    return;
+  }
 
-    try {
-      // Get all users
-      const uRes = await fetch(`${API}/users`);
-      const allUsers: UserRow[] = await uRes.json();
-      setUsers(allUsers);
+  try {
+    // Get all users
+    const uRes = await fetch(`${API}/users`);
+    const allUsers: UserRow[] = await uRes.json();
+    setUsers(allUsers);
 
-      // Find current user
-      const me =
-        allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
-        allUsers.find(
-          (u) => u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()
-        );
+    // Find current user
+    const me =
+      allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
+      allUsers.find(
+        (u) => u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()
+      );
 
-      if (!me) throw new Error("No matching user in the DB");
+    if (!me) throw new Error("No matching user in the DB");
 
-      const operatorID = me.userID;
+    const operatorID = me.userID;
+    setMyOperatorID(operatorID);
 
-      setMyOperatorID(operatorID);
+    // Fetch grouped tokens
+    const endpoint = `${API}/tokens/grouped/${operatorID}`;
+    console.log("Fetching grouped tokens:", endpoint);
+    const res = await fetch(endpoint);
 
-      const endpoint = `${API}/tokens/owner/${operatorID}`;
-      console.log('Fetching tokens for operator:', operatorID);
-      console.log('Endpoint:', endpoint);
+    if (!res.ok) throw new Error(`Grouped tokens fetch failed (${res.status})`);
 
-      const tRes = await fetch(endpoint);
-      console.log('Response status:', tRes.status);
-      
-      // Handle 404 as empty tokens array (no tokens for this owner yet)
-      if (tRes.status === 404) {
-        console.log('No tokens found (404) - setting empty array');
-        setTokens([]);
-      } else if (!tRes.ok) {
-        throw new Error(`tokens fetch failed (${tRes.status})`);
-      } else {
-        const tokenData = await tRes.json();
-        console.log('Tokens received:', tokenData);
-        setTokens(tokenData);
-      }
-    } catch (e: any) {
-      setErr(e.message || "Failed to load tokens");
-      toast({
-        title: "Error",
-        description: e.message || "Failed to load tokens",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    const groupedData = await res.json();
+    console.log("Grouped tokens received:", groupedData);
 
-  useEffect(() => {
-    fetchTokens();
-  }, [API, user]);
+    setGroupedTokens(groupedData);
+  } catch (e: any) {
+    setErr(e.message || "Failed to load grouped tokens");
+    toast({
+      title: "Error",
+      description: e.message || "Failed to load grouped tokens",
+      status: "error",
+      duration: 3000,
+      isClosable: true,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
+useEffect(() => {
+  fetchGroupedTokens();
+}, [API, user]);
 
   // Get operator name from users array
   const getOperatorName = (ownerID: number | null) => {
@@ -128,38 +123,40 @@ export default function CreditPortfolioPage() {
   };
 
   // Filtering
-  const filtered = useMemo(
-    () => {
-      const result = tokens.filter((t) => {
-        const matchesStatus = status === "all" || t.status === status;
-        const operatorName = getOperatorName(t.ownerID);
-        const matchesQ =
-          !q ||
-          String(t.tokenID).includes(q) ||
-          String(t.jobID).includes(q) ||
-          operatorName.toLowerCase().includes(q.toLowerCase()) ||
-          String(t.ownerID ?? "").includes(q) ||
-          t.blockchainHash?.toLowerCase().includes(q.toLowerCase());
-        return matchesStatus && matchesQ;
-      });
-      console.log('Total tokens:', tokens.length);
-      console.log('Filtered tokens:', result.length);
-      console.log('Current filter - status:', status, 'query:', q);
-      return result;
-    },
-    [tokens, q, status, users]
-  );
+  const filtered = useMemo(() => {
+  const result = groupedTokens.filter((g) => {
+    const matchesStatus = status === "all" || g.status === status;
+    const matchesQ =
+      !q ||
+      String(g.jobID).includes(q) ||
+      String(g.totalCredits).includes(q) ||
+      String(g.quality).includes(q) ||
+      g.status.toLowerCase().includes(q.toLowerCase());
+
+    return matchesStatus && matchesQ;
+  });
+
+  console.log("Filtered grouped tokens:", result.length);
+  return result;
+}, [groupedTokens, q, status]);
 
   // Calculate stats
-  const stats = useMemo(() => {
-    const total = filtered.length;
-    const readyToMint = filtered.filter(t => t.status === "Ready for Minting").length;
-    const minted = filtered.filter(t => t.status === "Minted").length;
-    const marketplace = filtered.filter(t => t.status === "On the Marketplace").length;
-    const retired = filtered.filter(t => t.retiredAt).length;
+  // Calculate stats by summing token counts (totalCredits)
+const stats = useMemo(() => {
+  const total = groupedTokens.reduce((sum, g) => sum + (g.totalCredits || 0), 0);
+  const minted = groupedTokens
+    .filter((g) => g.status === "Minted")
+    .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
+  const marketplace = groupedTokens
+    .filter((g) => g.status === "On the Marketplace")
+    .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
+  const retired = groupedTokens
+    .filter((g) => g.status === "Retired")
+    .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
 
-    return { total, readyToMint, minted, marketplace, retired };
-  }, [filtered]);
+  return { total, minted, marketplace, retired };
+}, [groupedTokens]);
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -220,14 +217,6 @@ export default function CreditPortfolioPage() {
         <Card>
           <CardBody>
             <Stat>
-              <StatLabel>Ready to Mint</StatLabel>
-              <StatNumber color="purple.500">{stats.readyToMint}</StatNumber>
-            </Stat>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <Stat>
               <StatLabel>Minted</StatLabel>
               <StatNumber color="yellow.500">{stats.minted}</StatNumber>
             </Stat>
@@ -281,81 +270,83 @@ export default function CreditPortfolioPage() {
 
       {/* Token cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
-        {filtered.map((t) => (
-          <Card
-            key={t.tokenID}
-            cursor="pointer"
-            transition="all 0.2s"
-            _hover={{
-              transform: "translateY(-4px)",
-              boxShadow: "lg",
-            }}
-            onClick={() => {
-              // Navigate to token details or job telemetry
-              window.location.href = `/telemetry/${t.jobID}`;
-            }}
-          >
-            <CardHeader>
-              <HStack justify="space-between">
-                <VStack align="start" spacing={0}>
-                  <Heading size="md">Token #{t.tokenID}</Heading>
-                  <Text fontSize="sm" color="gray.600">
-                    Job #{t.jobID}
-                  </Text>
-                </VStack>
-                <Badge colorScheme={getStatusColor(t.status)} size="lg">
-                  {t.status}
-                </Badge>
-              </HStack>
-            </CardHeader>
-            <CardBody pt={0}>
-              <VStack align="start" spacing={3}>
-                <Box width="100%">
-                  <HStack justify="space-between" mb={1}>
-                    <Text fontSize="sm" fontWeight="bold">Quality Score</Text>
-                    <Text fontSize="sm" fontWeight="bold">{t.quality}%</Text>
-                  </HStack>
-                  <Progress 
-                    value={t.quality} 
-                    size="sm" 
-                    colorScheme={getQualityColor(t.quality)}
-                    borderRadius="md"
-                  />
-                </Box>
+  {filtered.map((g) => (
+    <Card
+      key={`${g.jobID}-${g.status}`}
+      cursor="pointer"
+      transition="all 0.2s"
+      _hover={{
+        transform: "translateY(-4px)",
+        boxShadow: "lg",
+      }}
+      onClick={() => {
+        window.location.href = `/telemetry/${g.jobID}`;
+      }}
+    >
+      <CardHeader>
+        <HStack justify="space-between">
+          <VStack align="start" spacing={0}>
+            <Heading size="md">Job #{g.jobID}</Heading>
+            <Text fontSize="sm" color="gray.600">
+              {g.totalCredits} Credits
+            </Text>
+          </VStack>
+          <Badge colorScheme={getStatusColor(g.status)} size="lg">
+            {g.status}
+          </Badge>
+        </HStack>
+      </CardHeader>
 
-                {t.mintedAt && (
-                  <Text fontSize="sm">
-                    <strong>Minted:</strong> {new Date(t.mintedAt).toLocaleDateString()}
-                  </Text>
-                )}
+      <CardBody pt={0}>
+        <VStack align="start" spacing={3}>
+          <Box width="100%">
+            <HStack justify="space-between" mb={1}>
+              <Text fontSize="sm" fontWeight="bold">
+                Quality Score
+              </Text>
+              <Text fontSize="sm" fontWeight="bold">
+                {g.quality}%
+              </Text>
+            </HStack>
+            <Progress
+              value={g.quality}
+              size="sm"
+              colorScheme={getQualityColor(g.quality)}
+              borderRadius="md"
+            />
+          </Box>
 
-                {t.retiredAt && (
-                  <Text fontSize="sm" color="gray.600">
-                    <strong>Retired:</strong> {new Date(t.retiredAt).toLocaleDateString()}
-                  </Text>
-                )}
-
-                {t.blockchainHash && (
-                  <Text fontSize="xs" color="gray.600" noOfLines={1}>
-                    <strong>Hash:</strong> {t.blockchainHash}
-                  </Text>
-                )}
-              </VStack>
-            </CardBody>
-          </Card>
-        ))}
-      </SimpleGrid>
-
-      {!filtered.length && (
-        <Box textAlign="center" mt={10}>
-          <Text fontSize="lg" color="gray.600">No tokens match your filters.</Text>
-          {tokens.length === 0 && (
-            <Text fontSize="md" color="gray.500" mt={2}>
-              Complete jobs to earn carbon credit tokens.
+          {g.mintedAt && (
+            <Text fontSize="sm">
+              <strong>Minted:</strong>{" "}
+              {new Date(g.mintedAt).toLocaleDateString()}
             </Text>
           )}
-        </Box>
-      )}
+
+          {g.retiredAt && (
+            <Text fontSize="sm" color="gray.600">
+              <strong>Retired:</strong>{" "}
+              {new Date(g.retiredAt).toLocaleDateString()}
+            </Text>
+          )}
+        </VStack>
+      </CardBody>
+    </Card>
+  ))}
+</SimpleGrid>
+
+{!groupedTokens.length && (
+  <Box textAlign="center" mt={10}>
+    <Text fontSize="lg" color="gray.600">
+      No grouped tokens found.
+    </Text>
+    <Text fontSize="md" color="gray.500" mt={2}>
+      Complete jobs to earn carbon credit tokens.
+    </Text>
+  </Box>
+)}
+
+      
     </Box>
   );
 }

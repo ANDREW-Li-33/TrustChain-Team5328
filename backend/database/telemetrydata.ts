@@ -62,5 +62,3 @@ async function testConnection() {
     console.log('Supabase Telemetry Data:', data);
   }
 }
-
-testConnection();

@@ -55,5 +55,3 @@ async function testConnection() {
     console.log('Supabase User Data:', data);
   }
 }
-
-testConnection();

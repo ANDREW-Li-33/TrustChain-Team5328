@@ -79,5 +79,3 @@ async function testConnection() {
     console.log('Supabase Job Data:', data);
   }
 }
-
-testConnection();

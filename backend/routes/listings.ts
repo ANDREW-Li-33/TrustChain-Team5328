@@ -1,21 +1,21 @@
 import express from 'express';
 import { addListing, getActiveListings, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
-    completeListing, deleteListing, changeListingStatus, getListingsByDateRange
+    completeListing, changeListingStatus, getListingsByDateRange
  } from '../database/listings';
 
 const router = express.Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { tokenID, ownerID, Price, Status, Timestamp } = req.body;
+        const { tokenIDs, sellerID, Price, Status, CreatedAt } = req.body;
 
         // Basic validation
-        if (!tokenID || !ownerID || !Price) {
+        if (!tokenIDs || !sellerID || !Price) {
          return res.status(400).json({ error: "Missing required fields, error 1 in routes/Listings.ts" });
         }
 
         const newListing = await addListing({
-            tokenID, ownerID, Price, Status, Timestamp
+            tokenIDs, sellerID, Price, Status, CreatedAt
         });
 
         if (!newListing) {
@@ -65,12 +65,6 @@ router.get('/quality-range', async (req, res) => {
   res.json(listings);
 });
 
-router.delete('/:listingID', async (req, res) => {
-  const listingID = parseInt(req.params.listingID);
-  const deleted = await deleteListing(listingID);
-  if (!deleted) return res.status(500).json({ error: 'Failed to delete listing' });
-  res.json({ success: true, deleted });
-});
 
 router.patch('/:listingID/status', async (req, res) => {
   const listingID = parseInt(req.params.listingID);
@@ -84,11 +78,18 @@ router.patch('/:listingID/status', async (req, res) => {
   res.json(updated);
 });
 
-router.post('/complete', async (req, res) => {
-  const { listingID, tokenID, newOwner, oldOwner, priceSold } = req.body;
-  const result = await completeListing(listingID, tokenID, newOwner, oldOwner, priceSold);
-  if (!result) return res.status(500).json({ error: 'Failed to complete listing' });
-  res.json(result);
+router.post('/complete/:id', async (req, res) => {
+  const { id } = req.params;
+  const { buyerID, oldOwner, priceSold } = req.body;
+
+  try {
+    const result = await completeListing(Number(id), buyerID, oldOwner, priceSold);
+    if (!result) return res.status(404).json({ message: 'No tokens found or error completing listing.' });
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to complete listing' });
+  }
 });
 
 router.get('/date-range', async (req, res) => {

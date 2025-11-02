@@ -86,13 +86,11 @@ function calculateCO2Savings(telemetryData: any[]): number {
             const powerKw = metadata.measurements.power_kw || 0;
             const runtimeHours = (metadata.measurements.runtime_sec || 0) / 3600;
             const energyUsed = powerKw * runtimeHours;
-            
-            // Assuming baseline is 20% higher than actual (this is simplified)
-            const baseline = energyUsed * 1.2;
-            const savings = (baseline - energyUsed) * emissionFactor;
-            totalSavings += Math.max(0, savings);
+            const CO2TonsSaved = metadata.measurements.TotalCO2Saved;
+            totalSavings = Math.max(CO2TonsSaved, totalSavings);
         }
     }
+    console.log("Total CO2 Saved is: ", totalSavings);
     
     return Math.round(totalSavings * 1000) / 1000; // Round to 3 decimals
 }
@@ -122,7 +120,7 @@ function calculateQualityScore(telemetryData: any[]): number {
 // Update to mint job when verification is complete AND create token
 router.put('/:id/status', async (req, res) => {
     try {
-      const { status, verificationTimestamp } = req.body;
+      const { status, verificationTimestamp, quality } = req.body;
 
       if (!status) {
         return res.status(400).json({ error: "Status is required" });
@@ -178,7 +176,6 @@ router.put('/:id/status', async (req, res) => {
         // 4. Calculate CO2 savings and quality
         console.log(`Step 4: Calculating CO2 savings and quality score...`);
         const co2Saved = calculateCO2Savings(telemetryData || []);
-        const quality = calculateQualityScore(telemetryData || []);
         console.log(`CO2 Saved: ${co2Saved} tCO2e, Quality Score: ${quality}/100`);
 
         // 5. Create token metadata
@@ -193,28 +190,45 @@ router.put('/:id/status', async (req, res) => {
         };
 
         // 6. Create token record
-        console.log(`Step 5: Creating token record...`);
-        await updateJobStatus(request.jobID, 'Ready for Minting');
-        const newToken = await addToken({
-          ownerID: job.operatorID,
-          jobID: request.jobID,
-          quality: quality,
-          status: 'Ready for Minting',
-          metadata: tokenMetadata as any,
-        });
-
-        if (!newToken) {
-          console.error("Failed to create token record");
-          return res.status(500).json({ error: "Failed to create token" });
+        console.log(`Step 5: Creating token records...`);
+        await updateJobStatus(request.jobID, 'Minted');
+        const numTokens = Math.floor(co2Saved); // Ensure integer tokens
+        const fractionalToken = co2Saved - numTokens;
+        console.log("co2Saved:", co2Saved, "typeof:", typeof co2Saved);
+        console.log("numTokens:", numTokens, "fractionalToken:", fractionalToken);
+        if (numTokens <= 0) {
+          console.warn("CO2 savings is 0 or invalid — skipping token creation");
+        }
+        for (let i = 0; i < numTokens; i++) {
+          const tokenHash = `${request.jobID}_${request.operatorID}_${i}`;
+          
+          addToken({
+            ownerID: job.operatorID,
+            jobID: request.jobID,
+            quality: quality,
+            status: 'Minted',
+            mintedAt: new Date().toISOString(),
+            retiredAt: null,
+            metadata: tokenMetadata as unknown as JSON,
+            creditProportion: 1,
+            tokenHash: tokenHash,
+          })
+        }
+        if (fractionalToken > 0) {
+          const tokenHash = `${request.jobID}_${request.operatorID}_${numTokens}`;
+          addToken({
+            ownerID: job.operatorID,
+            jobID: request.jobID,
+            quality: quality,
+            status: 'Minted',
+            mintedAt: new Date().toISOString(),
+            retiredAt: null,
+            metadata: tokenMetadata as unknown as JSON,
+            creditProportion: fractionalToken,
+            tokenHash: tokenHash,
+          })
         }
 
-        console.log(`✅ Token created successfully!`);
-        console.log(`   Token ID: ${newToken[0].tokenID}`);
-        console.log(`   Owner: ${newToken[0].ownerID}`);
-        console.log(`   Quality: ${newToken[0].quality}/100`);
-        console.log(`   Status: ${newToken[0].status}`);
-        console.log(`   CO2 Saved: ${co2Saved} tCO2e`);
-        console.log(`=== Verification approval complete ===\n`);
       } else if (status === 'Denied') {
         // 1. Update job status to Denied
         console.log(`Step 1: Setting job ${request.jobID} to 'Denied'...`);

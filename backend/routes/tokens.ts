@@ -1,11 +1,11 @@
 import express from 'express';
-import { addToken, getTokens, getTokenByID, getTokensByOwnerID, updateOwnerOfToken, updateTokenStatus} from '../database/tokens';
+import { addToken, getTokens, getTokenByID, getTokensByOwnerID, updateOwnerOfToken, getTokensGroupedByOwner, updateTokenStatus} from '../database/tokens';
 
 const router = express.Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { ownerID, jobID, quality, status, mintedAt, retiredAt, metadata, blockchainHash } = req.body;
+        const { ownerID, jobID, quality, status, mintedAt, retiredAt, metadata, blockchainHash, creditProportion, tokenHash } = req.body;
 
         // Basic validation
         if (!ownerID || !jobID || !quality || !metadata) {
@@ -20,7 +20,9 @@ router.post('/', async (req, res) => {
             mintedAt,
             retiredAt,
             metadata,
-            blockchainHash
+            blockchainHash,
+            creditProportion,
+            tokenHash
         });
 
         if (!newToken) {
@@ -57,6 +59,22 @@ router.get('/owner/:ownerID', async (req, res) => {
   }
   res.status(200).json(tokens);
 });
+
+router.get('/grouped/:ownerID', async (req, res) => {
+  const { ownerID } = req.params;
+  try {
+    const grouped = await getTokensGroupedByOwner(Number(ownerID));
+    if (!grouped || grouped.length === 0) {
+      return res.status(404).json([]);
+    }
+    res.json(grouped);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch grouped tokens' });
+  }
+});
+
+
 
 router.patch('/:id/status', async (req, res) => {
   try {

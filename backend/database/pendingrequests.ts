@@ -125,4 +125,3 @@ async function testConnection() {
   }
 }
 
-testConnection();
