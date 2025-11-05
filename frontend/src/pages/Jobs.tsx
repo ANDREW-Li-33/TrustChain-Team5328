@@ -28,8 +28,12 @@ import {
   Divider,
   Wrap,
   WrapItem,
+  Spinner,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
+import { MdSell } from "react-icons/md";
 
 type Job = {
   jobID: number;
@@ -48,6 +52,20 @@ type UserRow = {
   organizationName?: string | null;
 };
 
+type Token = {
+  tokenID: number;
+  ownerID: number;
+  jobID: number;
+  quality: number;
+  status: string;
+  mintedAt?: string | null;
+  retiredAt?: string | null;
+  metadata: any;
+  blockchainHash?: number | null;
+  creditProportion: number;
+  tokenHash: string;
+};
+
 export default function JobsPage() {
   const API =
     import.meta.env.VITE_API_BASE_URL ||
@@ -56,15 +74,27 @@ export default function JobsPage() {
 
   const { user } = useContext<any>(Context);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { 
+    isOpen: isListingOpen, 
+    onOpen: onListingOpen, 
+    onClose: onListingClose 
+  } = useDisclosure();
   const toast = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [users, setUsers] = useState<UserRow[]>([]); // Store all users
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Listing modal state
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [listingPrice, setListingPrice] = useState<string>("");
+  const [isCreatingListing, setIsCreatingListing] = useState(false);
+  const [fetchingTokens, setFetchingTokens] = useState(false);
+  const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
 
   // New admin filter states
   const [recencyFilter, setRecencyFilter] = useState("all");
@@ -77,10 +107,10 @@ export default function JobsPage() {
   const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
   const [creating, setCreating] = useState(false);
 
-  // Determine if date filters are active (either dateAfter or dateBefore is set)
+  // Determine if date filters are active
   const isDateFilterActive = dateAfter !== "" || dateBefore !== "";
   
-  // Determine if recency filter is active (not "all")
+  // Determine if recency filter is active
   const isRecencyFilterActive = recencyFilter !== "all";
 
   // Fetch jobs and users
@@ -94,7 +124,7 @@ export default function JobsPage() {
       // Get all users
       const uRes = await fetch(`${API}/users`);
       const allUsers: UserRow[] = await uRes.json();
-      setUsers(allUsers); // Store all users for operator name lookup
+      setUsers(allUsers);
 
       // Find current user
       const me =
@@ -111,7 +141,7 @@ export default function JobsPage() {
       setMyOperatorID(operatorID);
       setIsAdmin(userRole === "slb admin");
 
-      // Get jobs - all jobs for admin, only user's jobs for operators
+      // Get jobs
       const endpoint = userRole === "slb admin" 
         ? `${API}/jobs`
         : `${API}/jobs/operator/${operatorID}`;
@@ -208,10 +238,10 @@ export default function JobsPage() {
         const operatorName = getOperatorName(j.operatorID);
         const matchesCompany = !isAdmin || companyFilter === "all" || operatorName === companyFilter;
         
-        // Recency filter (only applied if date filters are not active)
+        // Recency filter
         const matchesRecency = isDateFilterActive || recencyFilter === "all" || isWithinRecency(j.dateCreated, recencyFilter);
         
-        // Date range filter (only applied if recency filter is not active)
+        // Date range filter
         const matchesDateRange = isRecencyFilterActive || isWithinDateRange(j.dateCreated, dateAfter, dateBefore);
         
         // Search query filter
@@ -282,6 +312,138 @@ export default function JobsPage() {
     }
   };
 
+  // Handle opening the listing modal and fetching tokens for the job
+  const handleListForSale = async (e: React.MouseEvent, job: Job) => {
+    e.preventDefault(); // Prevent navigation
+    e.stopPropagation(); // Stop event bubbling
+    
+    setSelectedJob(job);
+    setListingPrice("");
+    setAvailableTokens([]);
+    onListingOpen();
+    
+    // Fetch tokens for this operator and filter for this job
+    setFetchingTokens(true);
+    try {
+      const tokensRes = await fetch(`${API}/tokens/owner/${myOperatorID}`);
+      if (!tokensRes.ok) {
+        throw new Error("Failed to fetch tokens");
+      }
+      
+      const allTokens: Token[] = await tokensRes.json();
+      
+      // Filter tokens for this specific job that are available (Minted status)
+      const jobTokens = allTokens.filter(
+        token => token.jobID === job.jobID && token.status === "Minted"
+      );
+      
+      setAvailableTokens(jobTokens);
+      
+      if (jobTokens.length === 0) {
+        toast({
+          title: "No Tokens Available",
+          description: "There are no minted tokens available for this job. Please ensure tokens have been minted first.",
+          status: "warning",
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch tokens",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      console.error("Error fetching tokens:", error);
+    } finally {
+      setFetchingTokens(false);
+    }
+  };
+
+  // Handle creating a listing
+  const handleCreateListing = async () => {
+    const priceValue = parseFloat(listingPrice);
+    
+    if (!selectedJob || !listingPrice || isNaN(priceValue) || priceValue <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid price",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (availableTokens.length === 0) {
+      toast({
+        title: "No Tokens",
+        description: "No tokens available to list",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsCreatingListing(true);
+
+    try {
+      // Extract token IDs from available tokens
+      const tokenIDs = availableTokens.map(token => token.tokenID);
+      
+      // Create the listing using the existing backend API
+      const listingRes = await fetch(`${API}/listings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenIDs: tokenIDs,
+          sellerID: myOperatorID,
+          Price: priceValue,
+          Status: "Active",
+          createdAt: new Date().toISOString(),
+        }),
+      });
+
+      if (!listingRes.ok) {
+        const errorData = await listingRes.json();
+        throw new Error(errorData.error || "Failed to create listing");
+      }
+
+      const listing = await listingRes.json();
+
+      toast({
+        title: "Success",
+        description: `Listing created successfully with ${tokenIDs.length} token(s)`,
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      });
+
+      // Reset and close
+      setSelectedJob(null);
+      setListingPrice("");
+      setAvailableTokens([]);
+      onListingClose();
+      
+      // Refresh jobs to reflect any status changes
+      await fetchJobs();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create listing",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      console.error("Error creating listing:", error);
+    } finally {
+      setIsCreatingListing(false);
+    }
+  };
+
   const handleResetFilters = () => {
     setQ("");
     setStatus("all");
@@ -319,6 +481,11 @@ export default function JobsPage() {
       case "year": return "Last year";
       default: return "";
     }
+  };
+
+  // Navigate to telemetry page
+  const handleCardClick = (jobID: number) => {
+    window.location.href = `/telemetry/${jobID}`;
   };
 
   return (
@@ -382,7 +549,6 @@ export default function JobsPage() {
             </Text>
             
             <Wrap spacing={3} align="center">
-              {/* Recency filter - only show if date filters are not active */}
               {!isDateFilterActive && (
                 <WrapItem>
                   <FormControl>
@@ -404,7 +570,6 @@ export default function JobsPage() {
                 </WrapItem>
               )}
 
-              {/* Date range filters - only show if recency filter is not active */}
               {!isRecencyFilterActive && (
                 <>
                   <WrapItem>
@@ -433,7 +598,6 @@ export default function JobsPage() {
                 </>
               )}
 
-              {/* Company name filter - always visible */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>Company</FormLabel>
@@ -482,14 +646,13 @@ export default function JobsPage() {
         </HStack>
       )}
 
-      {/* Job cards - styled like verifier dashboard */}
+      {/* Job cards with List for Sale button */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
         {filtered.map((j) => (
           <Card
             key={j.jobID}
-            as="a"
-            href={`/telemetry/${j.jobID}`}
             cursor="pointer"
+            onClick={() => handleCardClick(j.jobID)}
             transition="all 0.2s"
             _hover={{
               transform: "translateY(-4px)",
@@ -525,6 +688,20 @@ export default function JobsPage() {
                 <Text>
                   <strong>Created:</strong> {new Date(j.dateCreated).toLocaleString()}
                 </Text>
+                
+                {/* List for Sale button - only shown for Minted status and non-admin users */}
+                {!isAdmin && j.status === "Minted" && j.operatorID === myOperatorID && (
+                  <Button
+                    size="sm"
+                    colorScheme="green"
+                    leftIcon={<MdSell />}
+                    onClick={(e) => handleListForSale(e, j)}
+                    mt={2}
+                    width="full"
+                  >
+                    List for Sale
+                  </Button>
+                )}
               </VStack>
             </CardBody>
           </Card>
@@ -536,9 +713,6 @@ export default function JobsPage() {
           <Text fontSize="lg" color="gray.500">
             No jobs match your filters.
           </Text>
-          <Button mt={4} onClick={handleResetFilters} variant="outline">
-            Clear Filters
-          </Button>
         </Box>
       )}
 
@@ -599,6 +773,87 @@ export default function JobsPage() {
               loadingText="Creating..."
             >
               Create Job
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Create listing modal */}
+      <Modal isOpen={isListingOpen} onClose={onListingClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>List Job for Sale</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              {selectedJob && (
+                <>
+                  <FormControl>
+                    <FormLabel>Job</FormLabel>
+                    <Input value={`${selectedJob.jobTitle} (ID: ${selectedJob.jobID})`} isReadOnly />
+                  </FormControl>
+
+                  {fetchingTokens ? (
+                    <Box textAlign="center" py={4} width="full">
+                      <Spinner size="lg" />
+                      <Text mt={2}>Fetching available tokens...</Text>
+                    </Box>
+                  ) : (
+                    <>
+                      {availableTokens.length > 0 ? (
+                        <Alert status="info">
+                          <AlertIcon />
+                          <Box>
+                            <Text fontWeight="semibold">
+                              {availableTokens.length} token(s) available
+                            </Text>
+                            <Text fontSize="sm">
+                              Total credit proportion: {availableTokens.reduce((sum, t) => sum + t.creditProportion, 0)}
+                            </Text>
+                          </Box>
+                        </Alert>
+                      ) : (
+                        <Alert status="warning">
+                          <AlertIcon />
+                          No minted tokens available for this job. Please mint tokens first.
+                        </Alert>
+                      )}
+
+                      <FormControl isRequired isDisabled={availableTokens.length === 0}>
+                        <FormLabel>Total Price ($)</FormLabel>
+                        <Input
+                          type="number"
+                          placeholder="0.00"
+                          value={listingPrice}
+                          onChange={(e) => setListingPrice(e.target.value)}
+                          min="0.01"
+                          step="0.01"
+                        />
+                        {listingPrice && parseFloat(listingPrice) > 0 && availableTokens.length > 0 && (
+                          <Text fontSize="sm" color="gray.600" mt={1}>
+                            Price per token: ${(parseFloat(listingPrice) / availableTokens.length).toFixed(2)}
+                          </Text>
+                        )}
+                      </FormControl>
+                    </>
+                  )}
+                </>
+              )}
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onListingClose}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="green"
+              onClick={handleCreateListing}
+              isLoading={isCreatingListing}
+              loadingText="Creating Listing..."
+              isDisabled={!selectedJob || availableTokens.length === 0 || fetchingTokens}
+            >
+              Create Listing
             </Button>
           </ModalFooter>
         </ModalContent>

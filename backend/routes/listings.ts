@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { tokenIDs, sellerID, Price, Status, CreatedAt } = req.body;
+        const { tokenIDs, sellerID, Price, Status, createdAt } = req.body;
 
         // Basic validation
         if (!tokenIDs || !sellerID || !Price) {
@@ -15,7 +15,7 @@ router.post('/', async (req, res) => {
         }
 
         const newListing = await addListing({
-            tokenIDs, sellerID, Price, Status, CreatedAt
+            tokenIDs, sellerID, Price, Status, createdAt
         });
 
         if (!newListing) {

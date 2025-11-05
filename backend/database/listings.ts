@@ -7,7 +7,7 @@ export async function addListing(listing: {
   sellerID: number;
   Price: number;
   Status?: 'Active' | 'Complete';
-  CreatedAt?: string;
+  createdAt?: string;
 }) {
   try {
     const { data: listingData, error: listingError } = await supabase
@@ -17,7 +17,7 @@ export async function addListing(listing: {
           sellerID: listing.sellerID,
           Price: listing.Price,
           Status: listing.Status || 'Active',
-          CreatedAt: listing.CreatedAt || new Date().toISOString(),
+          createdAt: listing.createdAt || new Date().toISOString(),
         },
       ])
       .select('listingID');

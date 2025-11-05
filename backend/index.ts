@@ -22,7 +22,7 @@ app.use("/jobs", jobRoutes);
 app.use("/pendingrequests", pendingRequestRoutes);
 app.use("/telemetrydata", telemetryDataRoutes);
 app.use("/tokens", tokenRoutes);
-app.use("/listngs", listingRoutes);
+app.use("/listings", listingRoutes);
 console.log("User routes mounted at /users");
 
 
