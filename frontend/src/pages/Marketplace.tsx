@@ -127,8 +127,8 @@ export default function MarketplacePage() {
 
       // Fetch listings - use filtered endpoint for admin (always gets full details), regular for others
       const endpoint = isAdmin
-        ? `${API}/listngs/active/filtered${params.toString() ? `?${params.toString()}` : ''}`
-        : `${API}/listngs/active`;
+        ? `${API}/listings/active/filtered${params.toString() ? `?${params.toString()}` : ''}`
+        : `${API}/listings/active`;
 
       const lRes = await fetch(endpoint);
       if (!lRes.ok) throw new Error(`Listings fetch failed (${lRes.status})`);

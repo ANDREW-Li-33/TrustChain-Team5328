@@ -89,6 +89,11 @@ export async function getActiveListingsWithDetails(filters?: {
   companyName?: string;
 }) {
   try {
+    // Helper function to normalize date field from listing
+    const normalizeDate = (listing: any): string => {
+      return listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString();
+    };
+
     // Start with base query - join Listings with Users (seller info)
     // Try to join with Users table - if foreign key name is different, we'll handle it
     let query = supabase
@@ -101,6 +106,8 @@ export async function getActiveListingsWithDetails(filters?: {
       query = query.eq('sellerID', filters.sellerID);
     }
 
+    // Date filters - try CreatedAt first (matches addListing function)
+    // If column doesn't exist, we'll filter client-side after fetching
     if (filters?.dateAfter) {
       query = query.gte('CreatedAt', filters.dateAfter);
     }
@@ -109,7 +116,41 @@ export async function getActiveListingsWithDetails(filters?: {
       query = query.lte('CreatedAt', filters.dateBefore);
     }
 
-    const { data: listings, error: listingsError } = await query;
+    let { data: listings, error: listingsError } = await query;
+    
+    // If error is about column not found, retry without date filters and filter client-side
+    if (listingsError && (listingsError.message?.includes('CreatedAt') || listingsError.message?.includes('column') || listingsError.message?.includes('schema cache'))) {
+      console.warn('Date filter column (CreatedAt) not found, fetching all and filtering client-side');
+      
+      // Retry without date filters
+      let retryQuery = supabase
+        .from('Listings')
+        .select('*')
+        .eq('Status', 'Active');
+      
+      if (filters?.sellerID) {
+        retryQuery = retryQuery.eq('sellerID', filters.sellerID);
+      }
+      
+      const retryResult = await retryQuery;
+      listings = retryResult.data;
+      listingsError = retryResult.error;
+      
+      if (retryResult.error) {
+        console.error('Error fetching listings:', retryResult.error);
+        return null;
+      }
+      
+      // Filter by date client-side if needed
+      if (filters?.dateAfter || filters?.dateBefore) {
+        listings = (listings || []).filter((listing: any) => {
+          const listingDate = normalizeDate(listing);
+          if (filters?.dateAfter && listingDate < filters.dateAfter) return false;
+          if (filters?.dateBefore && listingDate > filters.dateBefore) return false;
+          return true;
+        });
+      }
+    }
 
     if (listingsError) {
       console.error('Error fetching listings:', listingsError);
@@ -130,8 +171,8 @@ export async function getActiveListingsWithDetails(filters?: {
         const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
         
         // Filter by company name early if specified
-        if (filters?.companyName && seller) {
-          const sellerName = seller.organizationName || '';
+        if (filters?.companyName) {
+          const sellerName = seller?.organizationName || seller?.email || '';
           if (!sellerName.toLowerCase().includes(filters.companyName.toLowerCase())) {
             return null;
           }
@@ -142,14 +183,17 @@ export async function getActiveListingsWithDetails(filters?: {
           .select('tokenID')
           .eq('listingID', listing.listingID);
 
+        // Normalize date field for consistency
+        const normalizedDate = normalizeDate(listing);
+        
         if (tokenLinksError || !tokenLinks) {
-          return { ...listing, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+          return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
         }
 
         const tokenIDs = tokenLinks.map((t: any) => t.tokenID);
 
         if (tokenIDs.length === 0) {
-          return { ...listing, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+          return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
         }
 
         // Get token details
@@ -175,13 +219,17 @@ export async function getActiveListingsWithDetails(filters?: {
         }
 
         // Calculate quality metrics
-        const qualities = tokens.map((t: any) => t.quality || 0);
+        const qualities = tokens.map((t: any) => t.quality || 0).filter((q: number) => q > 0);
+        if (qualities.length === 0) {
+          return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+        }
         const minQuality = Math.min(...qualities);
         const maxQuality = Math.max(...qualities);
         const avgQuality = qualities.reduce((sum: number, q: number) => sum + q, 0) / qualities.length;
-
+        
         return {
           ...listing,
+          CreatedAt: normalizedDate, // Ensure frontend always has CreatedAt
           seller: seller || null,
           tokens: tokens.map((t: any) => t.tokenID),
           tokenDetails: tokens,
