@@ -1,5 +1,5 @@
 import express from 'express';
-import { addListing, getActiveListings, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
+import { addListing, getActiveListings, getActiveListingsWithDetails, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
     completeListing, changeListingStatus, getListingsByDateRange
  } from '../database/listings';
 
@@ -33,6 +33,52 @@ router.get('/active', async (req, res) => {
   const listings = await getActiveListings();
   if (!listings) return res.status(500).json({ error: 'Failed to fetch active listings' });
   res.json(listings);
+});
+
+// Filtered active listings endpoint for SLB Admin
+router.get('/active/filtered', async (req, res) => {
+  try {
+    const {
+      minQuality,
+      sellerID,
+      tokenID,
+      dateAfter,
+      dateBefore,
+      companyName,
+    } = req.query;
+
+    const filters: any = {};
+
+    if (minQuality) {
+      filters.minQuality = parseInt(minQuality as string);
+    }
+    if (sellerID) {
+      filters.sellerID = parseInt(sellerID as string);
+    }
+    if (tokenID) {
+      filters.tokenID = parseInt(tokenID as string);
+    }
+    if (dateAfter) {
+      filters.dateAfter = dateAfter as string;
+    }
+    if (dateBefore) {
+      filters.dateBefore = dateBefore as string;
+    }
+    if (companyName) {
+      filters.companyName = companyName as string;
+    }
+
+    const listings = await getActiveListingsWithDetails(filters);
+    
+    if (listings === null) {
+      return res.status(500).json({ error: 'Failed to fetch filtered listings' });
+    }
+
+    res.json(listings);
+  } catch (error) {
+    console.error('Error in /active/filtered:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.get('/:id', async (req, res) => {

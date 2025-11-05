@@ -10,6 +10,7 @@ import TelemetryAnalysis from "./pages/TelemetryAnalysis";
 import NavBar from "./components/NavBar";
 import JobsPage from "./pages/Jobs";
 import CreditPortfolioPage from "./pages/CreditPortfolio";
+import MarketplacePage from "./pages/Marketplace";
 
 
 function App() {
@@ -112,7 +113,7 @@ function App() {
         element={
           <Protected>
             <NavBar />
-            <div>Marketplace Page</div>
+            <MarketplacePage />
           </Protected>
         }
       />

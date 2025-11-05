@@ -79,6 +79,129 @@ export async function getActiveListings() {
   return data;
 }
 
+// Get active listings with full details including seller info and token quality
+export async function getActiveListingsWithDetails(filters?: {
+  minQuality?: number;
+  sellerID?: number;
+  tokenID?: number;
+  dateAfter?: string;
+  dateBefore?: string;
+  companyName?: string;
+}) {
+  try {
+    // Start with base query - join Listings with Users (seller info)
+    // Try to join with Users table - if foreign key name is different, we'll handle it
+    let query = supabase
+      .from('Listings')
+      .select('*')
+      .eq('Status', 'Active');
+
+    // Apply filters
+    if (filters?.sellerID) {
+      query = query.eq('sellerID', filters.sellerID);
+    }
+
+    if (filters?.dateAfter) {
+      query = query.gte('CreatedAt', filters.dateAfter);
+    }
+
+    if (filters?.dateBefore) {
+      query = query.lte('CreatedAt', filters.dateBefore);
+    }
+
+    const { data: listings, error: listingsError } = await query;
+
+    if (listingsError) {
+      console.error('Error fetching listings:', listingsError);
+      return null;
+    }
+
+    if (!listings || listings.length === 0) {
+      return [];
+    }
+
+    // Get all users to map seller info
+    const { data: allUsers } = await supabase.from('Users').select('userID, email, organizationName, role');
+
+    // Get tokens for each listing and filter by quality/tokenID
+    const listingsWithTokens = await Promise.all(
+      listings.map(async (listing: any) => {
+        // Find seller info from users array
+        const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
+        
+        // Filter by company name early if specified
+        if (filters?.companyName && seller) {
+          const sellerName = seller.organizationName || '';
+          if (!sellerName.toLowerCase().includes(filters.companyName.toLowerCase())) {
+            return null;
+          }
+        }
+        // Get tokens for this listing
+        const { data: tokenLinks, error: tokenLinksError } = await supabase
+          .from('listingOfTokens')
+          .select('tokenID')
+          .eq('listingID', listing.listingID);
+
+        if (tokenLinksError || !tokenLinks) {
+          return { ...listing, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+        }
+
+        const tokenIDs = tokenLinks.map((t: any) => t.tokenID);
+
+        if (tokenIDs.length === 0) {
+          return { ...listing, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+        }
+
+        // Get token details
+        let tokensQuery = supabase
+          .from('Tokens')
+          .select('tokenID, quality, creditProportion')
+          .in('tokenID', tokenIDs);
+
+        // Filter by tokenID if specified
+        if (filters?.tokenID) {
+          tokensQuery = tokensQuery.eq('tokenID', filters.tokenID);
+        }
+
+        // Filter by minQuality if specified
+        if (filters?.minQuality !== undefined) {
+          tokensQuery = tokensQuery.gte('quality', filters.minQuality);
+        }
+
+        const { data: tokens, error: tokensError } = await tokensQuery;
+
+        if (tokensError || !tokens || tokens.length === 0) {
+          return null; // Skip this listing if no tokens match filters
+        }
+
+        // Calculate quality metrics
+        const qualities = tokens.map((t: any) => t.quality || 0);
+        const minQuality = Math.min(...qualities);
+        const maxQuality = Math.max(...qualities);
+        const avgQuality = qualities.reduce((sum: number, q: number) => sum + q, 0) / qualities.length;
+
+        return {
+          ...listing,
+          seller: seller || null,
+          tokens: tokens.map((t: any) => t.tokenID),
+          tokenDetails: tokens,
+          minQuality,
+          maxQuality,
+          avgQuality,
+        };
+      })
+    );
+
+    // Filter out null listings (didn't match filters)
+    const filtered = listingsWithTokens.filter((listing: any) => listing !== null);
+
+    return filtered;
+  } catch (err) {
+    console.error('Error in getActiveListingsWithDetails:', err);
+    return null;
+  }
+}
+
 export async function getListingByID(id: number) {
   const { data, error } = await supabase.from('Listings').select('*').eq('listingID', id).single();
   if (error) {
