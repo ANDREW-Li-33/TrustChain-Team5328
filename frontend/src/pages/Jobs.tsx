@@ -33,7 +33,6 @@ import {
   AlertIcon,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
-import { MdSell } from "react-icons/md";
 
 type Job = {
   jobID: number;
@@ -96,6 +95,9 @@ export default function JobsPage() {
   const [fetchingTokens, setFetchingTokens] = useState(false);
   const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
 
+  // Track which jobs have tokens on marketplace
+  const [jobsWithTokensOnMarketplace, setJobsWithTokensOnMarketplace] = useState<Set<number>>(new Set());
+
   // New admin filter states
   const [recencyFilter, setRecencyFilter] = useState("all");
   const [dateAfter, setDateAfter] = useState("");
@@ -112,6 +114,28 @@ export default function JobsPage() {
   
   // Determine if recency filter is active
   const isRecencyFilterActive = recencyFilter !== "all";
+
+  // Fetch tokens and determine which jobs have tokens on marketplace
+  const checkTokensOnMarketplace = async (operatorID: number) => {
+    try {
+      const tokensRes = await fetch(`${API}/tokens/owner/${operatorID}`);
+      if (!tokensRes.ok) return;
+      
+      const allTokens: Token[] = await tokensRes.json();
+      
+      // Find job IDs that have tokens with "On The Marketplace" status
+      const jobIDsOnMarketplace = new Set<number>();
+      allTokens.forEach(token => {
+        if (token.status === "On The Marketplace") {
+          jobIDsOnMarketplace.add(token.jobID);
+        }
+      });
+      
+      setJobsWithTokensOnMarketplace(jobIDsOnMarketplace);
+    } catch (error) {
+      console.error("Error checking marketplace tokens:", error);
+    }
+  };
 
   // Fetch jobs and users
   const fetchJobs = async () => {
@@ -150,6 +174,11 @@ export default function JobsPage() {
       if (!jRes.ok) throw new Error(`jobs fetch failed (${jRes.status})`);
 
       setJobs(await jRes.json());
+      
+      // Check which jobs have tokens on marketplace
+      if (userRole !== "slb admin") {
+        await checkTokensOnMarketplace(operatorID);
+      }
     } catch (e: any) {
       setErr(e.message || "Failed to load jobs");
     } finally {
@@ -211,6 +240,7 @@ export default function JobsPage() {
     if (!after && !before) return true;
     
     const date = new Date(dateString);
+    date.setHours(0, 0, 0, 0);
     
     if (after) {
       const afterDate = new Date(after);
@@ -227,7 +257,6 @@ export default function JobsPage() {
     return true;
   };
 
-  // Enhanced filtering logic
   const filtered = useMemo(
     () =>
       jobs.filter((j) => {
@@ -689,18 +718,33 @@ export default function JobsPage() {
                   <strong>Created:</strong> {new Date(j.dateCreated).toLocaleString()}
                 </Text>
                 
-                {/* List for Sale button - only shown for Minted status and non-admin users */}
+                {/* Show marketplace status or List for Sale button */}
                 {!isAdmin && j.status === "Minted" && j.operatorID === myOperatorID && (
-                  <Button
-                    size="sm"
-                    colorScheme="green"
-                    leftIcon={<MdSell />}
-                    onClick={(e) => handleListForSale(e, j)}
-                    mt={2}
-                    width="full"
-                  >
-                    List for Sale
-                  </Button>
+                  <>
+                    {jobsWithTokensOnMarketplace.has(j.jobID) ? (
+                      <Badge 
+                        colorScheme="blue" 
+                        fontSize="md" 
+                        px={3} 
+                        py={2}
+                        mt={2}
+                        width="full"
+                        textAlign="center"
+                      >
+                        On the Marketplace
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        colorScheme="green"
+                        onClick={(e) => handleListForSale(e, j)}
+                        mt={2}
+                        width="full"
+                      >
+                        List for Sale
+                      </Button>
+                    )}
+                  </>
                 )}
               </VStack>
             </CardBody>
