@@ -1,8 +1,10 @@
 import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/Login";
 import OperatorDashboard from "./pages/OperatorDashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminListings from "./pages/AdminListings";
 import VerifierDashboard from "./pages/VerifierDashboard";
-import VerifierEvidenceReview from "./pages/VerifierEvidenceReview"; // NEW
+import VerifierEvidenceReview from "./pages/VerifierEvidenceReview";
 import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
@@ -36,6 +38,24 @@ function App() {
           <Protected>
             <NavBar />
             <OperatorDashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <Protected>
+            <NavBar />
+            <AdminDashboard />
+          </Protected>
+        }
+      />
+      <Route
+        path="/admin/listings"
+        element={
+          <Protected>
+            <NavBar />
+            <AdminListings />
           </Protected>
         }
       />
@@ -87,14 +107,6 @@ function App() {
         element={
           <Protected>
             <NavBar />
-            <TelemetryAnalysis />
-          </Protected>
-        }
-      />
-      <Route
-        path="/telemetry/:jobId"
-        element={
-          <Protected>
             <TelemetryAnalysis />
           </Protected>
         }
