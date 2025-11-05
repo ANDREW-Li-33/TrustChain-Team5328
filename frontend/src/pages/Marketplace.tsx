@@ -27,6 +27,14 @@ import {
   Stat,
   StatLabel,
   StatNumber,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
 } from "@chakra-ui/react";
 
 type Listing = {
@@ -73,6 +81,12 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserRow | null>(null);
+
+  // Modal state for purchase confirmation
+  const { isOpen: isPurchaseOpen, onOpen: onPurchaseOpen, onClose: onPurchaseClose } = useDisclosure();
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
   // Filter states
   const [q, setQ] = useState("");
@@ -112,6 +126,7 @@ export default function MarketplacePage() {
         );
 
       if (me) {
+        setCurrentUser(me);
         const userRole = me.role?.toLowerCase();
         setIsAdmin(userRole === "slb admin" || userRole === "slb_admin");
       }
@@ -314,6 +329,80 @@ export default function MarketplacePage() {
         return "Last year";
       default:
         return "";
+    }
+  };
+
+  // Check if user can purchase a listing
+  const canPurchaseListing = (listing: Listing): boolean => {
+    if (!currentUser) return false;
+    
+    // Cannot purchase if user is the seller
+    if (currentUser.userID === listing.sellerID) return false;
+    
+    // Cannot purchase if user is admin
+    if (isAdmin) return false;
+    
+    // Only Buyers and Operators can purchase
+    const userRole = currentUser.role?.toLowerCase();
+    return userRole === "buyer" || userRole === "operator";
+  };
+
+  // Handle opening the purchase confirmation modal
+  const handlePurchaseClick = (listing: Listing) => {
+    setSelectedListing(listing);
+    onPurchaseOpen();
+  };
+
+  // Handle completing the purchase
+  const handleCompletePurchase = async () => {
+    if (!selectedListing || !currentUser) return;
+
+    setIsPurchasing(true);
+
+    try {
+      const response = await fetch(`${API}/listings/complete/${selectedListing.listingID}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          buyerID: currentUser.userID,
+          oldOwner: selectedListing.sellerID,
+          priceSold: selectedListing.Price,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || "Failed to complete purchase");
+      }
+
+      const result = await response.json();
+
+      toast({
+        title: "Purchase Successful",
+        description: `Successfully purchased ${result.tokensUpdated} token(s) for $${selectedListing.Price.toFixed(2)}`,
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      });
+
+      // Close modal and refresh listings
+      onPurchaseClose();
+      setSelectedListing(null);
+      await fetchListings();
+
+    } catch (error: any) {
+      console.error("Purchase error:", error);
+      toast({
+        title: "Purchase Failed",
+        description: error.message || "Unable to complete the purchase. Please try again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsPurchasing(false);
     }
   };
 
@@ -539,26 +628,11 @@ export default function MarketplacePage() {
               Company: {companyFilter}
             </Badge>
           )}
-          {minQuality && (
-            <Badge colorScheme="purple" px={2} py={1}>
-              Quality ≥ {minQuality}
-            </Badge>
-          )}
-          {sellerIDFilter && (
-            <Badge colorScheme="teal" px={2} py={1}>
-              Seller ID: {sellerIDFilter}
-            </Badge>
-          )}
-          {tokenIDFilter && (
-            <Badge colorScheme="cyan" px={2} py={1}>
-              Token ID: {tokenIDFilter}
-            </Badge>
-          )}
         </HStack>
       )}
 
-      {/* Stats Summary */}
-      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={6}>
+      {/* Summary stats */}
+      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={6}>
         <Card>
           <CardBody>
             <Stat>
@@ -691,6 +765,20 @@ export default function MarketplacePage() {
                     {new Date(listing.CreatedAt).toLocaleString()}
                   </Text>
                 </Box>
+
+                {/* Purchase Button - Only shown for eligible users */}
+                {canPurchaseListing(listing) && (
+                  <>
+                    <Divider />
+                    <Button
+                      colorScheme="blue"
+                      width="100%"
+                      onClick={() => handlePurchaseClick(listing)}
+                    >
+                      Purchase Listing
+                    </Button>
+                  </>
+                )}
               </VStack>
             </CardBody>
           </Card>
@@ -707,7 +795,78 @@ export default function MarketplacePage() {
           </Button>
         </Box>
       )}
+
+      {/* Purchase Confirmation Modal */}
+      <Modal isOpen={isPurchaseOpen} onClose={onPurchaseClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Confirm Purchase</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {selectedListing && (
+              <VStack align="start" spacing={3}>
+                <Text>
+                  Are you sure you want to purchase this listing?
+                </Text>
+                
+                <Box width="100%" p={4} bg="gray.50" borderRadius="md">
+                  <VStack align="start" spacing={2}>
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Listing ID:</Text>
+                      <Text>#{selectedListing.listingID}</Text>
+                    </HStack>
+                    
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Seller:</Text>
+                      <Text>
+                        {selectedListing.seller?.organizationName ||
+                          getSellerName(selectedListing.sellerID)}
+                      </Text>
+                    </HStack>
+                    
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Number of Tokens:</Text>
+                      <Text>{selectedListing.tokens?.length || 0}</Text>
+                    </HStack>
+                    
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Average Quality:</Text>
+                      <Text>{selectedListing.avgQuality?.toFixed(1) || "N/A"}%</Text>
+                    </HStack>
+                    
+                    <Divider />
+                    
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold" fontSize="lg">Total Price:</Text>
+                      <Text fontWeight="bold" fontSize="lg" color="green.600">
+                        ${selectedListing.Price?.toFixed(2) || "0.00"}
+                      </Text>
+                    </HStack>
+                  </VStack>
+                </Box>
+                
+                <Text fontSize="sm" color="gray.600">
+                  The tokens will be transferred to your account and the listing will be marked as complete.
+                </Text>
+              </VStack>
+            )}
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onPurchaseClose} isDisabled={isPurchasing}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleCompletePurchase}
+              isLoading={isPurchasing}
+              loadingText="Processing..."
+            >
+              Confirm Purchase
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
-
