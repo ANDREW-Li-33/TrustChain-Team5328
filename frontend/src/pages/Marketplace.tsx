@@ -35,7 +35,17 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
+  IconButton,
+  Tooltip,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  TableContainer,
 } from "@chakra-ui/react";
+import { ViewIcon } from "@chakra-ui/icons";
 
 type Listing = {
   listingID: number;
@@ -88,6 +98,10 @@ export default function MarketplacePage() {
   const { isOpen: isPurchaseOpen, onOpen: onPurchaseOpen, onClose: onPurchaseClose } = useDisclosure();
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
+
+  // Modal state for listing details
+  const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
+  const [detailListing, setDetailListing] = useState<Listing | null>(null);
 
   // Filter states
   const [q, setQ] = useState("");
@@ -352,6 +366,12 @@ export default function MarketplacePage() {
   const handlePurchaseClick = (listing: Listing) => {
     setSelectedListing(listing);
     onPurchaseOpen();
+  };
+
+  // Handle viewing listing details
+  const handleViewDetails = (listing: Listing) => {
+    setDetailListing(listing);
+    onDetailOpen();
   };
 
   // Handle completing the purchase
@@ -655,14 +675,15 @@ export default function MarketplacePage() {
             <Card>
               <CardBody>
                 <Stat>
-                  <StatLabel>Avg. Min Quality</StatLabel>
+                  <StatLabel>Avg Quality</StatLabel>
                   <StatNumber>
                     {filtered.length > 0
                       ? Math.round(
-                          filtered.reduce((sum, l) => sum + (l.minQuality || 0), 0) /
+                          filtered.reduce((sum, l) => sum + (l.avgQuality || 0), 0) /
                             filtered.length
                         )
                       : 0}
+                    %
                   </StatNumber>
                 </Stat>
               </CardBody>
@@ -698,73 +719,98 @@ export default function MarketplacePage() {
             <CardHeader>
               <HStack justify="space-between">
                 <Heading size="md">
-                  {listing.tokens?.length || 0} token{(listing.tokens?.length || 0) !== 1 ? 's' : ''} from {listing.seller?.organizationName || getSellerName(listing.sellerID)}
+                  {listing.tokens?.length || 0} token{(listing.tokens?.length || 0) !== 1 ? 's' : ''} from {listing.seller?.organizationName || listing.seller?.email || `Seller ${listing.sellerID}`}
                 </Heading>
-                <Badge colorScheme="green">Active</Badge>
+                <HStack>
+                  <Badge colorScheme="green">Active</Badge>
+                  {isAdmin && (
+                    <Tooltip label="View Details">
+                      <IconButton
+                        aria-label="View details"
+                        icon={<ViewIcon />}
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetails(listing);
+                        }}
+                      />
+                    </Tooltip>
+                  )}
+                </HStack>
               </HStack>
             </CardHeader>
             <CardBody pt={0}>
               <VStack align="start" spacing={3}>
+                {/* Seller Info */}
                 <Box width="100%">
-                  <HStack justify="space-between" mb={1}>
-                    <Text fontSize="sm" fontWeight="bold">
-                      Seller
-                    </Text>
-                    <Text fontSize="sm" fontWeight="bold">
-                      {listing.seller?.organizationName ||
-                        getSellerName(listing.sellerID)}
-                    </Text>
-                  </HStack>
-                  <Text fontSize="xs" color="gray.600">
-                    Seller ID: {listing.sellerID}
+                  <Text fontSize="sm" fontWeight="bold" color="gray.600">
+                    Seller
+                  </Text>
+                  <Text fontSize="md" fontWeight="semibold">
+                    {listing.seller?.organizationName || listing.seller?.email || `Seller ${listing.sellerID}`}
+                  </Text>
+                  <Text fontSize="xs" color="gray.500">
+                    ID: {listing.sellerID}
                   </Text>
                 </Box>
 
                 <Divider />
 
+                {/* Quality - Show avgQuality for admins, minQuality for others */}
                 <Box width="100%">
                   <HStack justify="space-between" mb={1}>
-                    <Text fontSize="sm" fontWeight="bold">
-                      Quality
+                    <Text fontSize="sm" fontWeight="bold" color="gray.600">
+                      Credit Quality
                     </Text>
                     <Text fontSize="sm" fontWeight="bold">
-                      {listing.minQuality?.toFixed(1) || "N/A"}%
+                      {isAdmin 
+                        ? `${listing.avgQuality?.toFixed(1) || "N/A"}%`
+                        : `${listing.minQuality?.toFixed(1) || "N/A"}%`
+                      }
                     </Text>
                   </HStack>
                   <Progress
-                    value={listing.minQuality || 0}
+                    value={isAdmin ? (listing.avgQuality || 0) : (listing.minQuality || 0)}
                     size="sm"
-                    colorScheme={getQualityColor(listing.minQuality || 0)}
+                    colorScheme={getQualityColor(isAdmin ? (listing.avgQuality || 0) : (listing.minQuality || 0))}
                     borderRadius="md"
                   />
+                  {isAdmin && (
+                    <HStack mt={1} spacing={2} fontSize="xs" color="gray.600">
+                      <Text>Min: {listing.minQuality || 0}%</Text>
+                      <Text>•</Text>
+                      <Text>Max: {listing.maxQuality || 0}%</Text>
+                    </HStack>
+                  )}
                 </Box>
 
                 <Divider />
 
-                <Box width="100%">
-                  <Text fontSize="sm" fontWeight="bold" mb={1}>
-                    Price
-                  </Text>
-                  <Text fontSize="lg" color="green.600" fontWeight="bold">
-                    ${listing.Price?.toFixed(2) || "0.00"}
-                  </Text>
-                </Box>
+                {/* Price & Token Count */}
+                <HStack width="100%" justify="space-between">
+                  <Box>
+                    <Text fontSize="sm" fontWeight="bold" color="gray.600">
+                      Price
+                    </Text>
+                    <Text fontSize="lg" color="green.600" fontWeight="bold">
+                      ${listing.Price?.toFixed(2) || "0.00"}
+                    </Text>
+                  </Box>
+                  <Box textAlign="right">
+                    <Text fontSize="sm" fontWeight="bold" color="gray.600">
+                      Tokens
+                    </Text>
+                    <Text fontSize="lg" fontWeight="bold">
+                      {listing.tokens?.length || 0}
+                    </Text>
+                  </Box>
+                </HStack>
 
+                {/* Date Added */}
                 <Box width="100%">
-                  <Text fontSize="sm" fontWeight="bold" mb={1}>
-                    Tokens ({listing.tokens?.length || 0})
-                  </Text>
-                  <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                    {listing.tokens?.join(", ") || "None"}
-                  </Text>
-                </Box>
-
-                <Box width="100%">
-                  <Text fontSize="sm" fontWeight="bold" mb={1}>
-                    Added
-                  </Text>
-                  <Text fontSize="sm" color="gray.600">
-                    {new Date(listing.CreatedAt).toLocaleString()}
+                  <Text fontSize="xs" color="gray.500">
+                    Added: {new Date(listing.CreatedAt).toLocaleString()}
                   </Text>
                 </Box>
 
@@ -782,17 +828,13 @@ export default function MarketplacePage() {
                   </>
                 )}
 
-                {!canPurchaseListing(listing) && (
+                {/* Show message if user owns the listing */}
+                {currentUser && currentUser.userID === listing.sellerID && !isAdmin && (
                   <>
                     <Divider />
-                    
                     <Box width="100%" textAlign="center">
-                      <Badge
-                        colorScheme="gray"
-                        px={4}
-                        py={4}
-                      >
-                        This listing belongs to you!
+                      <Badge colorScheme="gray" px={4} py={2}>
+                        Your Listing
                       </Badge>
                     </Box>
                   </>
@@ -883,6 +925,187 @@ export default function MarketplacePage() {
               Confirm Purchase
             </Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Listing Details Modal (Admin Only) */}
+      <Modal isOpen={isDetailOpen} onClose={onDetailClose} size="2xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <HStack justify="space-between">
+              <Text>Listing #{detailListing?.listingID} Details</Text>
+              <Badge colorScheme="green" fontSize="md">
+                {detailListing?.Status}
+              </Badge>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            {detailListing && (
+              <VStack align="stretch" spacing={4}>
+                {/* Seller Information */}
+                <Box>
+                  <Heading size="sm" mb={2}>
+                    Seller Information
+                  </Heading>
+                  <Card>
+                    <CardBody>
+                      <VStack align="start" spacing={2}>
+                        <HStack justify="space-between" width="100%">
+                          <Text fontWeight="bold">Organization:</Text>
+                          <Text>
+                            {detailListing.seller?.organizationName || "N/A"}
+                          </Text>
+                        </HStack>
+                        <HStack justify="space-between" width="100%">
+                          <Text fontWeight="bold">Email:</Text>
+                          <Text>{detailListing.seller?.email || "N/A"}</Text>
+                        </HStack>
+                        <HStack justify="space-between" width="100%">
+                          <Text fontWeight="bold">Seller ID:</Text>
+                          <Text>{detailListing.sellerID}</Text>
+                        </HStack>
+                        <HStack justify="space-between" width="100%">
+                          <Text fontWeight="bold">Role:</Text>
+                          <Badge>{detailListing.seller?.role || "Unknown"}</Badge>
+                        </HStack>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                </Box>
+
+                {/* Listing Details */}
+                <Box>
+                  <Heading size="sm" mb={2}>
+                    Listing Details
+                  </Heading>
+                  <Card>
+                    <CardBody>
+                      <VStack align="start" spacing={2}>
+                        <HStack justify="space-between" width="100%">
+                          <Text fontWeight="bold">Price:</Text>
+                          <Text fontSize="xl" color="green.600" fontWeight="bold">
+                            ${detailListing.Price?.toFixed(2)}
+                          </Text>
+                        </HStack>
+                        <HStack justify="space-between" width="100%">
+                          <Text fontWeight="bold">Created:</Text>
+                          <Text>
+                            {new Date(detailListing.CreatedAt).toLocaleString()}
+                          </Text>
+                        </HStack>
+                        <HStack justify="space-between" width="100%">
+                          <Text fontWeight="bold">Total Tokens:</Text>
+                          <Text>{detailListing.tokens?.length || 0}</Text>
+                        </HStack>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                </Box>
+
+                {/* Credit Quality */}
+                <Box>
+                  <Heading size="sm" mb={2}>
+                    Credit Quality Metrics
+                  </Heading>
+                  <Card>
+                    <CardBody>
+                      <VStack align="stretch" spacing={3}>
+                        <Box>
+                          <HStack justify="space-between" mb={2}>
+                            <Text fontWeight="bold">Average Quality:</Text>
+                            <Text fontSize="lg" fontWeight="bold">
+                              {detailListing.avgQuality?.toFixed(1)}%
+                            </Text>
+                          </HStack>
+                          <Progress
+                            value={detailListing.avgQuality || 0}
+                            size="md"
+                            colorScheme={getQualityColor(detailListing.avgQuality || 0)}
+                            borderRadius="md"
+                          />
+                        </Box>
+                        <SimpleGrid columns={2} spacing={4}>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600">
+                              Minimum Quality
+                            </Text>
+                            <Text fontSize="2xl" fontWeight="bold">
+                              {detailListing.minQuality || 0}%
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="sm" color="gray.600">
+                              Maximum Quality
+                            </Text>
+                            <Text fontSize="2xl" fontWeight="bold">
+                              {detailListing.maxQuality || 0}%
+                            </Text>
+                          </Box>
+                        </SimpleGrid>
+                      </VStack>
+                    </CardBody>
+                  </Card>
+                </Box>
+
+                {/* Token Details */}
+                {detailListing.tokenDetails && detailListing.tokenDetails.length > 0 && (
+                  <Box>
+                    <Heading size="sm" mb={2}>
+                      Token Details
+                    </Heading>
+                    <Card>
+                      <CardBody>
+                        <TableContainer>
+                          <Table size="sm" variant="simple">
+                            <Thead>
+                              <Tr>
+                                <Th>Token ID</Th>
+                                <Th isNumeric>Quality (%)</Th>
+                                <Th isNumeric>Credit Amount</Th>
+                              </Tr>
+                            </Thead>
+                            <Tbody>
+                              {detailListing.tokenDetails.map((token) => (
+                                <Tr key={token.tokenID}>
+                                  <Td fontWeight="medium">{token.tokenID}</Td>
+                                  <Td isNumeric>
+                                    <Badge colorScheme={getQualityColor(token.quality)}>
+                                      {token.quality || 0}%
+                                    </Badge>
+                                  </Td>
+                                  <Td isNumeric>
+                                    {token.creditProportion?.toFixed(2) || "0.00"} tCO2e
+                                  </Td>
+                                </Tr>
+                              ))}
+                            </Tbody>
+                          </Table>
+                        </TableContainer>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                )}
+
+                {/* Token IDs List (if no token details) */}
+                {(!detailListing.tokenDetails || detailListing.tokenDetails.length === 0) && (
+                  <Box>
+                    <Heading size="sm" mb={2}>
+                      Token IDs
+                    </Heading>
+                    <Card>
+                      <CardBody>
+                        <Text fontSize="sm" color="gray.600">
+                          {detailListing.tokens?.join(", ") || "No tokens"}
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                )}
+              </VStack>
+            )}
+          </ModalBody>
         </ModalContent>
       </Modal>
     </Box>
