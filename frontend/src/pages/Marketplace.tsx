@@ -82,6 +82,7 @@ export default function MarketplacePage() {
   const [err, setErr] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserRow | null>(null);
+  const [isOperator, setIsOperator] = useState(false);
 
   // Modal state for purchase confirmation
   const { isOpen: isPurchaseOpen, onOpen: onPurchaseOpen, onClose: onPurchaseClose } = useDisclosure();
@@ -129,6 +130,7 @@ export default function MarketplacePage() {
         setCurrentUser(me);
         const userRole = me.role?.toLowerCase();
         setIsAdmin(userRole === "slb admin" || userRole === "slb_admin");
+        setIsOperator(userRole === "operator");
       }
 
       // Build filter query params
@@ -632,7 +634,7 @@ export default function MarketplacePage() {
       )}
 
       {/* Summary stats */}
-      <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={6}>
+      <SimpleGrid columns={{ base: 1, md: 2, lg: isOperator ? 2 : 4 }} spacing={4} mb={6}>
         <Card>
           <CardBody>
             <Stat>
@@ -649,34 +651,38 @@ export default function MarketplacePage() {
             </Stat>
           </CardBody>
         </Card>
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Avg. Min Quality</StatLabel>
-              <StatNumber>
-                {filtered.length > 0
-                  ? Math.round(
-                      filtered.reduce((sum, l) => sum + (l.minQuality || 0), 0) /
-                        filtered.length
-                    )
-                  : 0}
-              </StatNumber>
-            </Stat>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <Stat>
-              <StatLabel>Total Value</StatLabel>
-              <StatNumber>
-                $
-                {filtered
-                  .reduce((sum, l) => sum + (l.Price || 0), 0)
-                  .toFixed(2)}
-              </StatNumber>
-            </Stat>
-          </CardBody>
-        </Card>
+        {!isOperator && (
+          <>
+            <Card>
+              <CardBody>
+                <Stat>
+                  <StatLabel>Avg. Min Quality</StatLabel>
+                  <StatNumber>
+                    {filtered.length > 0
+                      ? Math.round(
+                          filtered.reduce((sum, l) => sum + (l.minQuality || 0), 0) /
+                            filtered.length
+                        )
+                      : 0}
+                  </StatNumber>
+                </Stat>
+              </CardBody>
+            </Card>
+            <Card>
+              <CardBody>
+                <Stat>
+                  <StatLabel>Total Value</StatLabel>
+                  <StatNumber>
+                    $
+                    {filtered
+                      .reduce((sum, l) => sum + (l.Price || 0), 0)
+                      .toFixed(2)}
+                  </StatNumber>
+                </Stat>
+              </CardBody>
+            </Card>
+          </>
+        )}
       </SimpleGrid>
 
       {/* Listing cards */}
