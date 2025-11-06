@@ -207,7 +207,7 @@ export default function CreditPortfolioPage() {
       .filter((g) => g.status === "Minted")
       .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
     const marketplace = groupedTokens
-      .filter((g) => g.status === "On the Marketplace")
+      .filter((g) => g.status === "On The Marketplace")
       .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
     const retired = groupedTokens
       .filter((g) => g.status === "Retired")
@@ -222,7 +222,7 @@ export default function CreditPortfolioPage() {
         return "yellow";
       case "Ready for Minting":
         return "purple";
-      case "On the Marketplace":
+      case "On The Marketplace":
         return "green";
       case "Retired":
         return "gray";
@@ -446,7 +446,7 @@ export default function CreditPortfolioPage() {
           <option value="all">All statuses</option>
           <option value="Ready for Minting">Ready for Minting</option>
           <option value="Minted">Minted</option>
-          <option value="On the Marketplace">On the Marketplace</option>
+          <option value="On The Marketplace">On The Marketplace</option>
         </Select>
         <Button
           onClick={() => {
@@ -536,7 +536,7 @@ export default function CreditPortfolioPage() {
                         width="full"
                         textAlign="center"
                       >
-                        On the Marketplace
+                        On The Marketplace
                       </Badge>
                     ) : (
                       <Button
