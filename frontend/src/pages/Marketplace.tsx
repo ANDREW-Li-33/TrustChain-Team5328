@@ -143,9 +143,8 @@ export default function MarketplacePage() {
       if (companyFilter !== "all") params.append("companyName", companyFilter);
 
       // Fetch listings - use filtered endpoint for admin (always gets full details), regular for others
-      const endpoint = isAdmin
-        ? `${API}/listings/active/filtered${params.toString() ? `?${params.toString()}` : ''}`
-        : `${API}/listings/active`;
+      const endpoint = `${API}/listings/active/filtered${params.toString() ? `?${params.toString()}` : ''}`;
+
 
       const lRes = await fetch(endpoint);
       if (!lRes.ok) throw new Error(`Listings fetch failed (${lRes.status})`);
