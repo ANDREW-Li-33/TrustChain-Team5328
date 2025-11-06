@@ -692,7 +692,9 @@ export default function MarketplacePage() {
           >
             <CardHeader>
               <HStack justify="space-between">
-                <Heading size="md">Listing #{listing.listingID}</Heading>
+                <Heading size="md">
+                  {listing.tokens?.length || 0} token{(listing.tokens?.length || 0) !== 1 ? 's' : ''} from {listing.seller?.organizationName || getSellerName(listing.sellerID)}
+                </Heading>
                 <Badge colorScheme="green">Active</Badge>
               </HStack>
             </CardHeader>
