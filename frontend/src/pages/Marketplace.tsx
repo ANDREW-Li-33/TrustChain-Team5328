@@ -652,11 +652,11 @@ export default function MarketplacePage() {
         <Card>
           <CardBody>
             <Stat>
-              <StatLabel>Avg Quality</StatLabel>
+              <StatLabel>Avg. Min Quality</StatLabel>
               <StatNumber>
                 {filtered.length > 0
                   ? Math.round(
-                      filtered.reduce((sum, l) => sum + (l.avgQuality || 0), 0) /
+                      filtered.reduce((sum, l) => sum + (l.minQuality || 0), 0) /
                         filtered.length
                     )
                   : 0}
@@ -718,16 +718,16 @@ export default function MarketplacePage() {
                 <Box width="100%">
                   <HStack justify="space-between" mb={1}>
                     <Text fontSize="sm" fontWeight="bold">
-                      Average Quality
+                      Quality
                     </Text>
                     <Text fontSize="sm" fontWeight="bold">
-                      {listing.avgQuality?.toFixed(1) || "N/A"}%
+                      {listing.minQuality?.toFixed(1) || "N/A"}%
                     </Text>
                   </HStack>
                   <Progress
-                    value={listing.avgQuality || 0}
+                    value={listing.minQuality || 0}
                     size="sm"
-                    colorScheme={getQualityColor(listing.avgQuality || 0)}
+                    colorScheme={getQualityColor(listing.minQuality || 0)}
                     borderRadius="md"
                   />
                 </Box>
@@ -841,8 +841,8 @@ export default function MarketplacePage() {
                     </HStack>
                     
                     <HStack justify="space-between" width="100%">
-                      <Text fontWeight="bold">Average Quality:</Text>
-                      <Text>{selectedListing.avgQuality?.toFixed(1) || "N/A"}%</Text>
+                      <Text fontWeight="bold">Quality (Min):</Text>
+                      <Text>{selectedListing.minQuality?.toFixed(1) || "N/A"}%</Text>
                     </HStack>
                     
                     <Divider />
