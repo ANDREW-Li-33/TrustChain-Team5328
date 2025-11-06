@@ -28,9 +28,6 @@ import {
   Divider,
   Wrap,
   WrapItem,
-  Spinner,
-  Alert,
-  AlertIcon,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
 
@@ -51,20 +48,6 @@ type UserRow = {
   organizationName?: string | null;
 };
 
-type Token = {
-  tokenID: number;
-  ownerID: number;
-  jobID: number;
-  quality: number;
-  status: string;
-  mintedAt?: string | null;
-  retiredAt?: string | null;
-  metadata: any;
-  blockchainHash?: number | null;
-  creditProportion: number;
-  tokenHash: string;
-};
-
 export default function JobsPage() {
   const API =
     import.meta.env.VITE_API_BASE_URL ||
@@ -73,11 +56,6 @@ export default function JobsPage() {
 
   const { user } = useContext<any>(Context);
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { 
-    isOpen: isListingOpen, 
-    onOpen: onListingOpen, 
-    onClose: onListingClose 
-  } = useDisclosure();
   const toast = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -87,16 +65,6 @@ export default function JobsPage() {
   const [status, setStatus] = useState("all");
   const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-
-  // Listing modal state
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [listingPrice, setListingPrice] = useState<string>("");
-  const [isCreatingListing, setIsCreatingListing] = useState(false);
-  const [fetchingTokens, setFetchingTokens] = useState(false);
-  const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
-
-  // Track which jobs have tokens on marketplace
-  const [jobsWithTokensOnMarketplace, setJobsWithTokensOnMarketplace] = useState<Set<number>>(new Set());
 
   // New admin filter states
   const [recencyFilter, setRecencyFilter] = useState("all");
@@ -114,28 +82,6 @@ export default function JobsPage() {
   
   // Determine if recency filter is active
   const isRecencyFilterActive = recencyFilter !== "all";
-
-  // Fetch tokens and determine which jobs have tokens on marketplace
-  const checkTokensOnMarketplace = async (operatorID: number) => {
-    try {
-      const tokensRes = await fetch(`${API}/tokens/owner/${operatorID}`);
-      if (!tokensRes.ok) return;
-      
-      const allTokens: Token[] = await tokensRes.json();
-      
-      // Find job IDs that have tokens with "On The Marketplace" status
-      const jobIDsOnMarketplace = new Set<number>();
-      allTokens.forEach(token => {
-        if (token.status === "On The Marketplace") {
-          jobIDsOnMarketplace.add(token.jobID);
-        }
-      });
-      
-      setJobsWithTokensOnMarketplace(jobIDsOnMarketplace);
-    } catch (error) {
-      console.error("Error checking marketplace tokens:", error);
-    }
-  };
 
   // Fetch jobs and users
   const fetchJobs = async () => {
@@ -174,11 +120,6 @@ export default function JobsPage() {
       if (!jRes.ok) throw new Error(`jobs fetch failed (${jRes.status})`);
 
       setJobs(await jRes.json());
-      
-      // Check which jobs have tokens on marketplace
-      if (userRole !== "slb admin") {
-        await checkTokensOnMarketplace(operatorID);
-      }
     } catch (e: any) {
       setErr(e.message || "Failed to load jobs");
     } finally {
@@ -338,138 +279,6 @@ export default function JobsPage() {
       });
     } finally {
       setCreating(false);
-    }
-  };
-
-  // Handle opening the listing modal and fetching tokens for the job
-  const handleListForSale = async (e: React.MouseEvent, job: Job) => {
-    e.preventDefault(); // Prevent navigation
-    e.stopPropagation(); // Stop event bubbling
-    
-    setSelectedJob(job);
-    setListingPrice("");
-    setAvailableTokens([]);
-    onListingOpen();
-    
-    // Fetch tokens for this operator and filter for this job
-    setFetchingTokens(true);
-    try {
-      const tokensRes = await fetch(`${API}/tokens/owner/${myOperatorID}`);
-      if (!tokensRes.ok) {
-        throw new Error("Failed to fetch tokens");
-      }
-      
-      const allTokens: Token[] = await tokensRes.json();
-      
-      // Filter tokens for this specific job that are available (Minted status)
-      const jobTokens = allTokens.filter(
-        token => token.jobID === job.jobID && token.status === "Minted"
-      );
-      
-      setAvailableTokens(jobTokens);
-      
-      if (jobTokens.length === 0) {
-        toast({
-          title: "No Tokens Available",
-          description: "There are no minted tokens available for this job. Please ensure tokens have been minted first.",
-          status: "warning",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch tokens",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      console.error("Error fetching tokens:", error);
-    } finally {
-      setFetchingTokens(false);
-    }
-  };
-
-  // Handle creating a listing
-  const handleCreateListing = async () => {
-    const priceValue = parseFloat(listingPrice);
-    
-    if (!selectedJob || !listingPrice || isNaN(priceValue) || priceValue <= 0) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter a valid price",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (availableTokens.length === 0) {
-      toast({
-        title: "No Tokens",
-        description: "No tokens available to list",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setIsCreatingListing(true);
-
-    try {
-      // Extract token IDs from available tokens
-      const tokenIDs = availableTokens.map(token => token.tokenID);
-      
-      // Create the listing using the existing backend API
-      const listingRes = await fetch(`${API}/listings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tokenIDs: tokenIDs,
-          sellerID: myOperatorID,
-          Price: priceValue,
-          Status: "Active",
-          createdAt: new Date().toISOString(),
-        }),
-      });
-
-      if (!listingRes.ok) {
-        const errorData = await listingRes.json();
-        throw new Error(errorData.error || "Failed to create listing");
-      }
-
-      const listing = await listingRes.json();
-
-      toast({
-        title: "Success",
-        description: `Listing created successfully with ${tokenIDs.length} token(s)`,
-        status: "success",
-        duration: 5000,
-        isClosable: true,
-      });
-
-      // Reset and close
-      setSelectedJob(null);
-      setListingPrice("");
-      setAvailableTokens([]);
-      onListingClose();
-      
-      // Refresh jobs to reflect any status changes
-      await fetchJobs();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create listing",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-      console.error("Error creating listing:", error);
-    } finally {
-      setIsCreatingListing(false);
     }
   };
 
@@ -675,7 +484,7 @@ export default function JobsPage() {
         </HStack>
       )}
 
-      {/* Job cards with List for Sale button */}
+      {/* Job cards */}
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
         {filtered.map((j) => (
           <Card
@@ -717,35 +526,6 @@ export default function JobsPage() {
                 <Text>
                   <strong>Created:</strong> {new Date(j.dateCreated).toLocaleString()}
                 </Text>
-                
-                {/* Show marketplace status or List for Sale button */}
-                {!isAdmin && j.status === "Minted" && j.operatorID === myOperatorID && (
-                  <>
-                    {jobsWithTokensOnMarketplace.has(j.jobID) ? (
-                      <Badge 
-                        colorScheme="blue" 
-                        fontSize="md" 
-                        px={3} 
-                        py={2}
-                        mt={2}
-                        width="full"
-                        textAlign="center"
-                      >
-                        On the Marketplace
-                      </Badge>
-                    ) : (
-                      <Button
-                        size="sm"
-                        colorScheme="green"
-                        onClick={(e) => handleListForSale(e, j)}
-                        mt={2}
-                        width="full"
-                      >
-                        List for Sale
-                      </Button>
-                    )}
-                  </>
-                )}
               </VStack>
             </CardBody>
           </Card>
@@ -817,87 +597,6 @@ export default function JobsPage() {
               loadingText="Creating..."
             >
               Create Job
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Create listing modal */}
-      <Modal isOpen={isListingOpen} onClose={onListingClose} size="md">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>List Job for Sale</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
-              {selectedJob && (
-                <>
-                  <FormControl>
-                    <FormLabel>Job</FormLabel>
-                    <Input value={`${selectedJob.jobTitle} (ID: ${selectedJob.jobID})`} isReadOnly />
-                  </FormControl>
-
-                  {fetchingTokens ? (
-                    <Box textAlign="center" py={4} width="full">
-                      <Spinner size="lg" />
-                      <Text mt={2}>Fetching available tokens...</Text>
-                    </Box>
-                  ) : (
-                    <>
-                      {availableTokens.length > 0 ? (
-                        <Alert status="info">
-                          <AlertIcon />
-                          <Box>
-                            <Text fontWeight="semibold">
-                              {availableTokens.length} token(s) available
-                            </Text>
-                            <Text fontSize="sm">
-                              Total credit proportion: {availableTokens.reduce((sum, t) => sum + t.creditProportion, 0)}
-                            </Text>
-                          </Box>
-                        </Alert>
-                      ) : (
-                        <Alert status="warning">
-                          <AlertIcon />
-                          No minted tokens available for this job. Please mint tokens first.
-                        </Alert>
-                      )}
-
-                      <FormControl isRequired isDisabled={availableTokens.length === 0}>
-                        <FormLabel>Total Price ($)</FormLabel>
-                        <Input
-                          type="number"
-                          placeholder="0.00"
-                          value={listingPrice}
-                          onChange={(e) => setListingPrice(e.target.value)}
-                          min="0.01"
-                          step="0.01"
-                        />
-                        {listingPrice && parseFloat(listingPrice) > 0 && availableTokens.length > 0 && (
-                          <Text fontSize="sm" color="gray.600" mt={1}>
-                            Price per token: ${(parseFloat(listingPrice) / availableTokens.length).toFixed(2)}
-                          </Text>
-                        )}
-                      </FormControl>
-                    </>
-                  )}
-                </>
-              )}
-            </VStack>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onListingClose}>
-              Cancel
-            </Button>
-            <Button
-              colorScheme="green"
-              onClick={handleCreateListing}
-              isLoading={isCreatingListing}
-              loadingText="Creating Listing..."
-              isDisabled={!selectedJob || availableTokens.length === 0 || fetchingTokens}
-            >
-              Create Listing
             </Button>
           </ModalFooter>
         </ModalContent>
