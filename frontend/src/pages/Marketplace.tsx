@@ -779,6 +779,22 @@ export default function MarketplacePage() {
                     </Button>
                   </>
                 )}
+
+                {!canPurchaseListing(listing) && (
+                  <>
+                    <Divider />
+                    
+                    <Box width="100%" textAlign="center">
+                      <Badge
+                        colorScheme="gray"
+                        px={4}
+                        py={4}
+                      >
+                        This listing belongs to you!
+                      </Badge>
+                    </Box>
+                  </>
+                )}
               </VStack>
             </CardBody>
           </Card>
