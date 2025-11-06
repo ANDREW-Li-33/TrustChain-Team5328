@@ -730,11 +730,6 @@ export default function MarketplacePage() {
                     colorScheme={getQualityColor(listing.avgQuality || 0)}
                     borderRadius="md"
                   />
-                  <HStack mt={1} spacing={2} fontSize="xs" color="gray.600">
-                    <Text>Min: {listing.minQuality || 0}</Text>
-                    <Text>•</Text>
-                    <Text>Max: {listing.maxQuality || 0}</Text>
-                  </HStack>
                 </Box>
 
                 <Divider />
