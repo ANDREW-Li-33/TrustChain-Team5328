@@ -636,12 +636,12 @@ export default function MarketplacePage() {
           )}
           {dateAfter && (
             <Badge colorScheme="green" px={2} py={1}>
-              After: {new Date(dateAfter).toLocaleDateString()}
+              After: {new Date(dateAfter).toLocaleDateString(undefined, { timeZone: "UTC" })}
             </Badge>
           )}
           {dateBefore && (
             <Badge colorScheme="green" px={2} py={1}>
-              Before: {new Date(dateBefore).toLocaleDateString()}
+              Before: {new Date(dateBefore).toLocaleDateString(undefined, { timeZone: "UTC" })}
             </Badge>
           )}
           {companyFilter !== "all" && (
