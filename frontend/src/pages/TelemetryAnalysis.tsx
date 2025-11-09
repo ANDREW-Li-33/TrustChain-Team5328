@@ -125,6 +125,7 @@ export default function TelemetryAnalysis() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isVerifyOpen, setIsVerifyOpen] = useState(false);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [pendingRequestData, setPendingRequestData] = useState<any>(null);
   const { user } = useContext<any>(Context);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -293,13 +294,24 @@ export default function TelemetryAnalysis() {
       const res = await fetch(`${API_BASE}/pendingrequests/job/${selectedJob}`);
       if (!res.ok) {
         setHasPendingRequest(false);
+        setPendingRequestData(null);
         return;
       }
       const requests = await res.json();
-      setHasPendingRequest(requests.length > 0);
+      const hasPending = requests.length > 0;
+      setHasPendingRequest(hasPending);
+      // Store the most recent request (denied requests will have denial reason)
+      if (hasPending && requests.length > 0) {
+        // Sort by requestID descending to get the most recent
+        const sortedRequests = requests.sort((a: any, b: any) => b.requestID - a.requestID);
+        setPendingRequestData(sortedRequests[0]);
+      } else {
+        setPendingRequestData(null);
+      }
     } catch (err) {
       console.log('Error checking pending requests:', err);
       setHasPendingRequest(true);
+      setPendingRequestData(null);
     }
   }
 
@@ -797,9 +809,23 @@ export default function TelemetryAnalysis() {
           )}
 
           {jobStatus === 'Denied' && (
-            <Alert status="error" variant="subtle" borderRadius="md" maxW="400px">
+            <Alert status="error" variant="subtle" borderRadius="md" maxW="600px">
               <AlertIcon />
-              This job has been denied
+              <Box>
+                <Text fontWeight="bold" mb={2}>
+                  This job has been denied
+                </Text>
+                {(pendingRequestData?.denialReason || pendingRequestData?.verificationNotes || pendingRequestData?.notes) && (
+                  <Box mt={2} p={3} bg="red.50" borderRadius="md" borderLeft="4px solid" borderColor="red.500">
+                    <Text fontSize="sm" fontWeight="semibold" mb={1} color="red.700">
+                      Reason for Denial:
+                    </Text>
+                    <Text fontSize="sm" color="red.800" whiteSpace="pre-wrap">
+                      {pendingRequestData.denialReason || pendingRequestData.verificationNotes || pendingRequestData.notes}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
             </Alert>
           )}  
 
@@ -810,9 +836,24 @@ export default function TelemetryAnalysis() {
           )}
 
           {jobStatus === "Completed" && hasPendingRequest && (
-            <Button colorScheme="gray" size="lg" isDisabled>
-              Request Currently Pending
-            </Button>
+            <VStack align="stretch" spacing={2} maxW="600px">
+              <Button colorScheme="gray" size="lg" isDisabled>
+                Request Currently Pending
+              </Button>
+              {pendingRequestData?.status === "Denied" && (pendingRequestData?.denialReason || pendingRequestData?.verificationNotes || pendingRequestData?.notes) && (
+                <Alert status="error" borderRadius="md">
+                  <AlertIcon />
+                  <Box>
+                    <Text fontWeight="bold" mb={1} fontSize="sm">
+                      Your request was denied
+                    </Text>
+                    <Text fontSize="sm" whiteSpace="pre-wrap">
+                      {pendingRequestData.denialReason || pendingRequestData.verificationNotes || pendingRequestData.notes}
+                    </Text>
+                  </Box>
+                </Alert>
+              )}
+            </VStack>
           )}
 
           {jobStatus === "Active" && !isAdmin && (

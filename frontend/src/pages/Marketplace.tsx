@@ -87,6 +87,7 @@ export default function MarketplacePage() {
   const { user } = useContext<any>(Context);
   const toast = useToast();
   const [listings, setListings] = useState<Listing[]>([]);
+  const [allListingsForDropdown, setAllListingsForDropdown] = useState<Listing[]>([]); // All listings for company dropdown
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -119,7 +120,61 @@ export default function MarketplacePage() {
   const isDateFilterActive = dateAfter !== "" || dateBefore !== "";
   const isRecencyFilterActive = recencyFilter !== "all";
 
-  // Fetch listings and users
+  // Fetch all listings for company dropdown (always fetch all, regardless of filters)
+  const fetchAllListingsForDropdown = async () => {
+    if (!user) return;
+    
+    try {
+      const uRes = await fetch(`${API}/users`);
+      const allUsers: UserRow[] = await uRes.json();
+      
+      // Determine if user is admin
+      const me =
+        allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
+        allUsers.find(
+          (u) =>
+            u.email &&
+            user.email &&
+            u.email.toLowerCase() === user.email.toLowerCase()
+        );
+      
+      const userIsAdmin = me?.role?.toLowerCase() === "slb admin" || me?.role?.toLowerCase() === "slb_admin";
+      
+      let endpoint: string;
+      if (userIsAdmin) {
+        // Admins see ALL listings using date range with broad dates
+        endpoint = `${API}/listings/date-range?start=1900-01-01T00:00:00Z&end=2099-12-31T23:59:59Z`;
+      } else {
+        // Regular users see only active listings
+        endpoint = `${API}/listings/active`;
+      }
+      
+      const lRes = await fetch(endpoint);
+      if (!lRes.ok) return;
+      
+      const listingsData = await lRes.json();
+      
+      // Enrich listings with seller info
+      const processedListings = (listingsData || []).map((listing: any) => {
+        const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
+        return {
+          ...listing,
+          seller: seller || null,
+          tokens: listing.tokens || [],
+          minQuality: listing.minQuality || 0,
+          maxQuality: listing.maxQuality || 0,
+          avgQuality: listing.avgQuality || 0,
+          CreatedAt: listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString(),
+        };
+      });
+      
+      setAllListingsForDropdown(processedListings);
+    } catch (e: any) {
+      console.error("Error fetching all listings for dropdown:", e);
+    }
+  };
+
+  // Fetch listings and users (with filters for admin)
   const fetchListings = async () => {
     if (!user) {
       setLoading(false);
@@ -153,10 +208,29 @@ export default function MarketplacePage() {
       const userIsAdmin = me?.role?.toLowerCase() === "slb admin" || me?.role?.toLowerCase() === "slb_admin";
   
       let endpoint: string;
+      let listingsData: any[];
       
       if (userIsAdmin) {
-        // Admins see ALL listings using date range with broad dates
-        endpoint = `${API}/listings/date-range?start=1900-01-01T00:00:00Z&end=2099-12-31T23:59:59Z`;
+        // If status filter is "Complete", we need all listings (filtered endpoint only returns active)
+        // Otherwise, check if any admin filters are active
+        const needsAllListings = statusFilter === "Complete";
+        const hasAdminFilters = minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all");
+        
+        if (needsAllListings || !hasAdminFilters) {
+          // Get all listings (for status filtering or when no server-side filters)
+          endpoint = `${API}/listings/date-range?start=1900-01-01T00:00:00Z&end=2099-12-31T23:59:59Z`;
+        } else {
+          // Use filtered endpoint (only returns active listings, status filter will be applied client-side for "Active" or "all")
+          const params = new URLSearchParams();
+          if (minQuality) params.append("minQuality", minQuality);
+          if (sellerIDFilter) params.append("sellerID", sellerIDFilter);
+          if (tokenIDFilter) params.append("tokenID", tokenIDFilter);
+          if (dateAfter) params.append("dateAfter", dateAfter);
+          if (dateBefore) params.append("dateBefore", dateBefore);
+          if (companyFilter !== "all") params.append("companyName", companyFilter);
+          
+          endpoint = `${API}/listings/active/filtered${params.toString() ? `?${params.toString()}` : ''}`;
+        }
       } else {
         // Regular users see only active listings
         endpoint = `${API}/listings/active`;
@@ -165,7 +239,7 @@ export default function MarketplacePage() {
       const lRes = await fetch(endpoint);
       if (!lRes.ok) throw new Error(`Listings fetch failed (${lRes.status})`);
   
-      const listingsData = await lRes.json();
+      listingsData = await lRes.json();
       
       // Enrich listings with seller info for display
       const processedListings = (listingsData || []).map((listing: any) => {
@@ -197,9 +271,15 @@ export default function MarketplacePage() {
     }
   };
 
+  // Fetch all listings for dropdown on mount and when user changes
+  useEffect(() => {
+    fetchAllListingsForDropdown();
+  }, [API, user]);
+
+  // Fetch filtered listings when filters change
   useEffect(() => {
     fetchListings();
-  }, [API, user, minQuality, sellerIDFilter, tokenIDFilter, dateAfter, dateBefore, companyFilter]);
+  }, [API, user, minQuality, sellerIDFilter, tokenIDFilter, dateAfter, dateBefore, companyFilter, statusFilter]);
 
   // Get seller name from users array
   const getSellerName = (sellerID: number | null) => {
@@ -208,22 +288,17 @@ export default function MarketplacePage() {
     return seller?.organizationName || seller?.email || `Seller ${sellerID}`;
   };
 
-  // Get unique company names for filter dropdown
+  // Get unique company names for filter dropdown - use allListingsForDropdown, not filtered listings
   const uniqueCompanies = useMemo(() => {
-
-
-
     const companies = new Set<string>();
-    listings.forEach((listing) => {
-    
-
+    allListingsForDropdown.forEach((listing) => {
       const companyName = listing.seller?.organizationName || getSellerName(listing.sellerID);
       if (companyName && companyName !== "Unknown") {
         companies.add(companyName);
       }
     });
     return Array.from(companies).sort();
-  }, [listings, users]);
+  }, [allListingsForDropdown, users]);
 
   // Helper function to check if a date is within a recency period
   const isWithinRecency = (dateString: string, recency: string): boolean => {
@@ -276,29 +351,54 @@ export default function MarketplacePage() {
     return true;
   };
 
-  // Enhanced filtering logic (client-side for recency and search)
+  // Enhanced filtering logic (client-side for recency, search, and status)
+  // Note: For admin, when using filtered endpoint, server-side filters (minQuality, sellerID, tokenID, dateAfter, dateBefore, companyName) 
+  // are already applied. When fetching all listings, we apply all filters client-side.
   const filtered = useMemo(
     () =>
       listings.filter((listing) => {
-        // Company filter
-        const sellerName = listing.seller?.organizationName || getSellerName(listing.sellerID);
-        const matchesCompany =
-          !isAdmin || companyFilter === "all" || sellerName === companyFilter;
+        // Status filter (client-side, applies to all users)
+        const matchesStatus = statusFilter === "all" || listing.Status === statusFilter;
+
+        // Admin filters (only apply client-side if we fetched all listings, not filtered endpoint)
+        // Check if we're using server-side filters by checking if we have admin filters but status is not "Complete"
+        const usingServerSideFilters = isAdmin && statusFilter !== "Complete" && (minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all"));
+        
+        let matchesAdminFilters = true;
+        if (isAdmin && !usingServerSideFilters) {
+          // Apply admin filters client-side
+          if (minQuality) {
+            const listingMinQuality = listing.minQuality || 0;
+            if (listingMinQuality < parseFloat(minQuality)) matchesAdminFilters = false;
+          }
+          if (sellerIDFilter && listing.sellerID !== parseInt(sellerIDFilter)) {
+            matchesAdminFilters = false;
+          }
+          if (tokenIDFilter && !listing.tokens?.includes(parseInt(tokenIDFilter))) {
+            matchesAdminFilters = false;
+          }
+          if (companyFilter !== "all") {
+            const sellerName = listing.seller?.organizationName || getSellerName(listing.sellerID);
+            if (sellerName !== companyFilter) matchesAdminFilters = false;
+          }
+        }
 
         // Recency filter (only applied if date filters are not active)
+        // If admin is using server-side date filters, skip client-side recency filter
         const matchesRecency =
-          isDateFilterActive ||
+          (isAdmin && usingServerSideFilters && (dateAfter || dateBefore)) ? true :
           recencyFilter === "all" ||
           isWithinRecency(listing.CreatedAt, recencyFilter);
 
         // Date range filter (only applied if recency filter is not active)
+        // If admin is using server-side date filters, skip client-side date range filter
         const matchesDateRange =
+          (isAdmin && usingServerSideFilters && (dateAfter || dateBefore)) ? true :
           isRecencyFilterActive ||
           isWithinDateRange(listing.CreatedAt, dateAfter, dateBefore);
 
-        const matchesStatus =  !isAdmin || statusFilter === "all" || listing.Status === statusFilter;
-
-        // Search query filter
+        // Search query filter (always client-side)
+        const sellerName = listing.seller?.organizationName || getSellerName(listing.sellerID);
         const matchesQ =
           !q ||
           String(listing.listingID).includes(q) ||
@@ -307,7 +407,7 @@ export default function MarketplacePage() {
           listing.tokens.some((tokenID) => String(tokenID).includes(q)) ||
           String(listing.Price).includes(q);
 
-        return matchesStatus && matchesCompany && matchesRecency && matchesDateRange && matchesQ;
+        return matchesStatus && matchesAdminFilters && matchesRecency && matchesDateRange && matchesQ;
       }),
     [
       listings,
@@ -315,12 +415,15 @@ export default function MarketplacePage() {
       recencyFilter,
       dateAfter,
       dateBefore,
-      companyFilter,
       users,
       isAdmin,
       isDateFilterActive,
       isRecencyFilterActive,
-      statusFilter
+      statusFilter,
+      minQuality,
+      sellerIDFilter,
+      tokenIDFilter,
+      companyFilter
     ]
   );
 
@@ -427,7 +530,7 @@ export default function MarketplacePage() {
       // Close modal and refresh listings
       onPurchaseClose();
       setSelectedListing(null);
-      await fetchListings();
+      await Promise.all([fetchListings(), fetchAllListingsForDropdown()]);
 
     } catch (error: any) {
       console.error("Purchase error:", error);

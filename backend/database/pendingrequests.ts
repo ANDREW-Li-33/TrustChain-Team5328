@@ -48,11 +48,19 @@ export async function getRequests() {
 export async function updateRequestStatus(
   requestID: number,
   newStatus: "Pending review" | "On Hold" | "Approved" | "Denied",
-  verificationTimestamp?: string
+  verificationTimestamp?: string,
+  denialReason?: string
 ) {
   const updateData: any = { status: newStatus };
   if (verificationTimestamp) {
     updateData.verificationTimestamp = verificationTimestamp;
+  }
+  if (denialReason !== undefined && denialReason !== null && denialReason.trim() !== "") {
+    // Store denial reason - try common field names (Supabase will ignore fields that don't exist)
+    // Prefer verificationNotes based on schema, but try others as fallback
+    updateData.verificationNotes = denialReason;
+    updateData.denialReason = denialReason;
+    updateData.notes = denialReason;
   }
   const { data, error } = await supabase
     .from("PendingRequests")

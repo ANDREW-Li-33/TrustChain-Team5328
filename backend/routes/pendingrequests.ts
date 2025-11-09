@@ -120,7 +120,7 @@ function calculateQualityScore(telemetryData: any[]): number {
 // Update to mint job when verification is complete AND create token
 router.put('/:id/status', async (req, res) => {
     try {
-      const { status, verificationTimestamp, quality } = req.body;
+      const { status, verificationTimestamp, quality, denialReason } = req.body;
 
       if (!status) {
         return res.status(400).json({ error: "Status is required" });
@@ -135,7 +135,8 @@ router.put('/:id/status', async (req, res) => {
       const updatedRequest = await updateRequestStatus(
         Number(req.params.id), 
         status,
-        verificationTimestamp
+        verificationTimestamp,
+        denialReason
       );
       
       if (!updatedRequest) {
