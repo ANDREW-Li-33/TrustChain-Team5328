@@ -388,11 +388,11 @@ export async function getListingsByDateRange(startDate: string | null, endDate: 
   let query = supabase.from('Listings').select('*');
 
   if (startDate) {
-    query = query.gte('Timestamp', startDate);
+    query = query.gte('createdAt', startDate);
   }
 
   if (endDate) {
-    query = query.lte('Timestamp', endDate);
+    query = query.lte('createdAt', endDate);
   }
 
   const { data, error } = await query;
