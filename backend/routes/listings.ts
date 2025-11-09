@@ -88,12 +88,7 @@ router.get('/active/filtered', async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
-  const id = parseInt(req.params.id);
-  const listing = await getListingByID(id);
-  if (!listing) return res.status(404).json({ error: 'Listing not found' });
-  res.json(listing);
-});
+
 
 router.get('/owner/:ownerID', async (req, res) => {
   const ownerID = parseInt(req.params.ownerID);
@@ -160,6 +155,13 @@ router.get('/date-range', async (req, res) => {
   res.status(200).json(listings);
 });
 
+
+router.get('/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+  const listing = await getListingByID(id);
+  if (!listing) return res.status(404).json({ error: 'Listing not found' });
+  res.json(listing);
+});
 
 
 
