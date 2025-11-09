@@ -1,6 +1,6 @@
 import express from 'express';
 import { addListing, getActiveListings, getActiveListingsWithDetails, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
-    completeListing, changeListingStatus, getListingsByDateRange
+    completeListing, changeListingStatus, getListingsByDateRange, getPreviousListingsBySeller
  } from '../database/listings';
 
 const router = express.Router();
@@ -32,6 +32,13 @@ router.post('/', async (req, res) => {
 router.get('/active', async (req, res) => {
   const listings = await getActiveListings();
   if (!listings) return res.status(500).json({ error: 'Failed to fetch active listings' });
+  res.json(listings);
+});
+
+router.get('/previous/seller/:sellerID', async (req, res) => {
+  const sellerID = parseInt(req.params.sellerID);
+  const listings = await getPreviousListingsBySeller(sellerID);
+  if (!listings) return res.status(500).json({ error: 'Failed to fetch previous listings for seller' });
   res.json(listings);
 });
 

@@ -79,6 +79,24 @@ export async function getActiveListings() {
   return data;
 }
 
+export async function getPreviousListingsBySeller(sellerID: number) {
+  if (!sellerID) {
+    const {data, error} = await supabase.from('Listings').select('*').eq('Status', 'Complete');
+    if (error) {
+      console.error('Error fetching previous listings:', error);
+      return null;
+    }
+    return data;
+  } else {
+    const {data, error} = await supabase.from('Listings').select('*').eq('Status', 'Complete').eq('sellerID', sellerID);
+    if (error) {
+      console.error('Error fetching previous listings:', error);
+      return null;
+    }
+    return data;
+  }
+}
+
 // Get active listings with full details including seller info and token quality
 export async function getActiveListingsWithDetails(filters?: {
   minQuality?: number;
