@@ -112,6 +112,8 @@ export default function MarketplacePage() {
   const [minQuality, setMinQuality] = useState<string>("");
   const [sellerIDFilter, setSellerIDFilter] = useState<string>("");
   const [tokenIDFilter, setTokenIDFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
 
   // Determine if date filters are active
   const isDateFilterActive = dateAfter !== "" || dateBefore !== "";
@@ -123,13 +125,13 @@ export default function MarketplacePage() {
       setLoading(false);
       return;
     }
-
+  
     try {
       // Get all users for seller info
       const uRes = await fetch(`${API}/users`);
       const allUsers: UserRow[] = await uRes.json();
       setUsers(allUsers);
-
+  
       // Find current user to check if admin
       const me =
         allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
@@ -139,41 +141,46 @@ export default function MarketplacePage() {
             user.email &&
             u.email.toLowerCase() === user.email.toLowerCase()
         );
-
+  
       if (me) {
         setCurrentUser(me);
         const userRole = me.role?.toLowerCase();
         setIsAdmin(userRole === "slb admin" || userRole === "slb_admin");
         setIsOperator(userRole === "operator");
       }
-
-      // Build filter query params
-      const params = new URLSearchParams();
-      if (minQuality) params.append("minQuality", minQuality);
-      if (sellerIDFilter) params.append("sellerID", sellerIDFilter);
-      if (tokenIDFilter) params.append("tokenID", tokenIDFilter);
-      if (dateAfter) params.append("dateAfter", dateAfter);
-      if (dateBefore) params.append("dateBefore", dateBefore);
-      if (companyFilter !== "all") params.append("companyName", companyFilter);
-
-      // Fetch listings - use filtered endpoint for admin (always gets full details), regular for others
-      const endpoint = `${API}/listings/active/filtered${params.toString() ? `?${params.toString()}` : ''}`;
-
-
+  
+      // Determine if user is admin
+      const userIsAdmin = me?.role?.toLowerCase() === "slb admin" || me?.role?.toLowerCase() === "slb_admin";
+  
+      let endpoint: string;
+      
+      if (userIsAdmin) {
+        // Admins see ALL listings using date range with broad dates
+        endpoint = `${API}/listings/date-range?start=1900-01-01T00:00:00Z&end=2099-12-31T23:59:59Z`;
+      } else {
+        // Regular users see only active listings
+        endpoint = `${API}/listings/active`;
+      }
+  
       const lRes = await fetch(endpoint);
       if (!lRes.ok) throw new Error(`Listings fetch failed (${lRes.status})`);
-
+  
       const listingsData = await lRes.json();
       
-      // Ensure all listings have proper structure
-      const processedListings = (listingsData || []).map((listing: any) => ({
-        ...listing,
-        seller: listing.seller || null,
-        tokens: listing.tokens || [],
-        minQuality: listing.minQuality || 0,
-        maxQuality: listing.maxQuality || 0,
-        avgQuality: listing.avgQuality || 0,
-      }));
+      // Enrich listings with seller info for display
+      const processedListings = (listingsData || []).map((listing: any) => {
+        const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
+        return {
+          ...listing,
+          seller: seller || null,
+          tokens: listing.tokens || [],
+          minQuality: listing.minQuality || 0,
+          maxQuality: listing.maxQuality || 0,
+          avgQuality: listing.avgQuality || 0,
+          // Normalize date field
+          CreatedAt: listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString(),
+        };
+      });
       
       setListings(processedListings);
     } catch (e: any) {
@@ -203,8 +210,13 @@ export default function MarketplacePage() {
 
   // Get unique company names for filter dropdown
   const uniqueCompanies = useMemo(() => {
+
+
+
     const companies = new Set<string>();
     listings.forEach((listing) => {
+    
+
       const companyName = listing.seller?.organizationName || getSellerName(listing.sellerID);
       if (companyName && companyName !== "Unknown") {
         companies.add(companyName);
@@ -284,6 +296,8 @@ export default function MarketplacePage() {
           isRecencyFilterActive ||
           isWithinDateRange(listing.CreatedAt, dateAfter, dateBefore);
 
+        const matchesStatus =  !isAdmin || statusFilter === "all" || listing.Status === statusFilter;
+
         // Search query filter
         const matchesQ =
           !q ||
@@ -293,7 +307,7 @@ export default function MarketplacePage() {
           listing.tokens.some((tokenID) => String(tokenID).includes(q)) ||
           String(listing.Price).includes(q);
 
-        return matchesCompany && matchesRecency && matchesDateRange && matchesQ;
+        return matchesStatus && matchesCompany && matchesRecency && matchesDateRange && matchesQ;
       }),
     [
       listings,
@@ -306,6 +320,7 @@ export default function MarketplacePage() {
       isAdmin,
       isDateFilterActive,
       isRecencyFilterActive,
+      statusFilter
     ]
   );
 
@@ -318,6 +333,7 @@ export default function MarketplacePage() {
     setMinQuality("");
     setSellerIDFilter("");
     setTokenIDFilter("");
+    setStatusFilter("all");
   };
 
   const getQualityColor = (quality: number) => {
@@ -621,7 +637,27 @@ export default function MarketplacePage() {
                   />
                 </FormControl>
               </WrapItem>
+
+              {/* Status filter */}
+              <WrapItem>
+                <FormControl>
+                  <FormLabel fontSize="sm" mb={1}>
+                    Status
+                  </FormLabel>
+                  <Select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    w="150px"
+                  >
+                    <option value="all">All statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Complete">Complete</option>
+                  </Select>
+                </FormControl>
+              </WrapItem>
             </Wrap>
+
+            
           </>
         )}
       </VStack>
@@ -722,7 +758,9 @@ export default function MarketplacePage() {
                   {listing.tokens?.length || 0} token{(listing.tokens?.length || 0) !== 1 ? 's' : ''} from {listing.seller?.organizationName || listing.seller?.email || `Seller ${listing.sellerID}`}
                 </Heading>
                 <HStack>
-                  <Badge colorScheme="green">Active</Badge>
+                  <Badge colorScheme={listing.Status === 'Active' ? 'green' : 'gray'}>
+                    {listing.Status}
+                  </Badge>
                   {isAdmin && (
                     <Tooltip label="View Details">
                       <IconButton
