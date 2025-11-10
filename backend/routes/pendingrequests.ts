@@ -140,7 +140,14 @@ router.put('/:id/status', async (req, res) => {
       );
       
       if (!updatedRequest) {
-        return res.status(500).json({ error: "Failed to update request status" });
+        console.error(`Failed to update request ${req.params.id} with status ${status}`);
+        if (status === 'Denied' && denialReason) {
+          console.error(`Denial reason was: ${denialReason.substring(0, 100)}...`);
+        }
+        return res.status(500).json({ 
+          error: "Failed to update request status. Please check server logs for details.",
+          details: status === 'Denied' ? "The denial reason may not have been saved. Please check the database schema." : undefined
+        });
       }
 
       // If status is Complete, update the job status to Minted AND create token

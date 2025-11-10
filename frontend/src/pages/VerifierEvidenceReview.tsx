@@ -225,11 +225,16 @@ export default function VerifierEvidenceReview() {
             }),
         });
 
-      if (!response.ok) throw new Error("Failed to deny request");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || errorData.details || `HTTP ${response.status}: Failed to deny request`;
+        throw new Error(errorMessage);
+      }
 
+      const result = await response.json();
       toast({
         title: "Request Denied",
-        description: "The evidence package has been rejected.",
+        description: result.message || "The evidence package has been rejected.",
         status: "info",
         duration: 3000,
         isClosable: true,
@@ -237,11 +242,12 @@ export default function VerifierEvidenceReview() {
 
       setTimeout(() => navigate("/verifier"), 1500);
     } catch (err: any) {
+      console.error("Error denying request:", err);
       toast({
         title: "Error",
-        description: err.message || "Failed to deny request",
+        description: err.message || "Failed to deny request. Please check the console for details.",
         status: "error",
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
