@@ -13,6 +13,7 @@ import NavBar from "./components/NavBar";
 import JobsPage from "./pages/Jobs";
 import CreditPortfolioPage from "./pages/CreditPortfolio";
 import MarketplacePage from "./pages/Marketplace";
+import BuyerPortfolioPage from "./pages/BuyerPortfolio";
 
 
 function App() {
@@ -117,6 +118,15 @@ function App() {
           <Protected>
             <NavBar />
             <div>Tokens Page</div>
+          </Protected>
+        }
+      />
+      <Route
+        path="/buyerportfolio"
+        element={
+          <Protected>
+            <NavBar />
+            <BuyerPortfolioPage />
           </Protected>
         }
       />
