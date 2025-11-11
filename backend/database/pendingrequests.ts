@@ -48,71 +48,24 @@ export async function getRequests() {
 export async function updateRequestStatus(
   requestID: number,
   newStatus: "Pending review" | "On Hold" | "Approved" | "Denied",
-  verificationTimestamp?: string,
-  denialReason?: string
+  verificationTimestamp?: string
 ) {
   const updateData: any = { status: newStatus };
   if (verificationTimestamp) {
     updateData.verificationTimestamp = verificationTimestamp;
   }
-  if (denialReason !== undefined && denialReason !== null && denialReason.trim() !== "") {
-    // Store denial reason in verificationNotes field (Supabase column name may vary)
-    // Try camelCase first, then snake_case as fallback
-    updateData.verificationNotes = denialReason.trim();
-  }
+
   const { data, error } = await supabase
     .from("PendingRequests")
     .update(updateData)
     .eq("requestID", requestID)
     .select();
+
   if (error) {
     console.error("Error updating request status:", error);
-    console.error("Update data attempted:", updateData);
-    console.error("Error details:", JSON.stringify(error, null, 2));
-    console.error("Error code:", error.code);
-    console.error("Error message:", error.message);
-    console.error("Error hint:", error.hint);
-    
-    // If verificationNotes fails, try verification_notes (snake_case)
-    if (error.message && (error.message.includes("verificationNotes") || error.message.includes("verification_notes") || error.code === "PGRST204")) {
-      console.log("Retrying with snake_case column name...");
-      const retryData: any = { status: newStatus };
-      if (verificationTimestamp) {
-        retryData.verificationTimestamp = verificationTimestamp;
-      }
-      if (denialReason !== undefined && denialReason !== null && denialReason.trim() !== "") {
-        retryData.verification_notes = denialReason.trim();
-      }
-      const retryResult = await supabase
-        .from("PendingRequests")
-        .update(retryData)
-        .eq("requestID", requestID)
-        .select();
-      if (retryResult.error) {
-        console.error("Retry also failed:", retryResult.error);
-        console.error("Retry error details:", JSON.stringify(retryResult.error, null, 2));
-        // Try without the denial reason field - maybe the column doesn't exist
-        console.log("Retrying without denial reason field...");
-        const finalRetryData: any = { status: newStatus };
-        if (verificationTimestamp) {
-          finalRetryData.verificationTimestamp = verificationTimestamp;
-        }
-        const finalRetryResult = await supabase
-          .from("PendingRequests")
-          .update(finalRetryData)
-          .eq("requestID", requestID)
-          .select();
-        if (finalRetryResult.error) {
-          console.error("Final retry also failed:", finalRetryResult.error);
-          return null;
-        }
-        console.warn("Request status updated but denial reason could not be saved. Column may not exist in database.");
-        return finalRetryResult.data;
-      }
-      return retryResult.data;
-    }
     return null;
   }
+
   return data;
 }
 

@@ -37,7 +37,6 @@ import {
   ModalCloseButton,
   useDisclosure,
   Input,
-  Textarea,
   FormControl,
   FormLabel,
   FormHelperText
@@ -51,9 +50,6 @@ type PendingRequest = {
   status: string;
   requestTimestamp: string;
   verificationTimestamp: string | null;
-  denialReason?: string | null;
-  verificationNotes?: string | null;
-  notes?: string | null;
   operator?: {
     userID: number;
     organizationName: string | null;
@@ -105,7 +101,6 @@ export default function VerifierEvidenceReview() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quality, setQuality] = useState<number>(0);
-  const [denialReason, setDenialReason] = useState<string>("");
 
   useEffect(() => {
     fetchEvidencePackage();
@@ -202,17 +197,6 @@ export default function VerifierEvidenceReview() {
   const handleDeny = async () => {
     if (!request) return;
 
-    if (!denialReason.trim()) {
-      toast({
-        title: "Reason Required",
-        description: "Please provide a reason for denying this request.",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
     setActionLoading(true);
     try {
         const response = await fetch(`${API}/pendingrequests/${request.requestID}/status`, {
@@ -221,7 +205,6 @@ export default function VerifierEvidenceReview() {
             body: JSON.stringify({
                 status: "Denied",
                 verificationTimestamp: new Date().toISOString(),
-                denialReason: denialReason.trim(),
             }),
         });
 
@@ -252,7 +235,6 @@ export default function VerifierEvidenceReview() {
       });
     } finally {
       setActionLoading(false);
-      setDenialReason(""); // Reset comment
       onDenyClose();
     }
   };
@@ -412,19 +394,6 @@ export default function VerifierEvidenceReview() {
                   </Text>
                   <Text>{new Date(request.verificationTimestamp).toLocaleString()}</Text>
                 </HStack>
-              )}
-              {request.status === "Denied" && (request.denialReason || request.verificationNotes || request.notes) && (
-                <VStack align="start" spacing={2} width="100%">
-                  <Text fontWeight="bold" minW="150px">
-                    Denial Reason:
-                  </Text>
-                  <Alert status="error" width="100%" borderRadius="md">
-                    <AlertIcon />
-                    <Text whiteSpace="pre-wrap">
-                      {request.denialReason || request.verificationNotes || request.notes}
-                    </Text>
-                  </Alert>
-                </VStack>
               )}
             </VStack>
           </CardBody>
@@ -677,40 +646,18 @@ export default function VerifierEvidenceReview() {
           <ModalHeader>Confirm Denial</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <VStack align="start" spacing={4}>
-              <Text>
-                Are you sure you want to deny this evidence package? This action cannot be undone.
-              </Text>
-              <Alert status="warning">
-                <AlertIcon />
-                <Text fontSize="sm">
-                  Please provide a reason for denial. This will be visible to the operator.
-                </Text>
-              </Alert>
-              <FormControl isRequired>
-                <FormLabel>Reason for Denial</FormLabel>
-                <Textarea
-                  value={denialReason}
-                  onChange={(e) => setDenialReason(e.target.value)}
-                  placeholder="Enter the reason for denying this request (e.g., insufficient evidence, data quality issues, missing documentation...)"
-                  rows={4}
-                  resize="vertical"
-                />
-                <FormHelperText>
-                  Provide a clear explanation that will help the operator understand why the request was denied.
-                </FormHelperText>
-              </FormControl>
-            </VStack>
+            <Text>
+              Are you sure you want to deny this evidence package? This action cannot be undone.
+            </Text>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={() => { setDenialReason(""); onDenyClose(); }}>
+            <Button variant="ghost" mr={3} onClick={onDenyClose}>
               Cancel
             </Button>
             <Button
               colorScheme="red"
               onClick={handleDeny}
               isLoading={actionLoading}
-              isDisabled={!denialReason.trim()}
             >
               Confirm Denial
             </Button>

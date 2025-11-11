@@ -300,7 +300,7 @@ export default function TelemetryAnalysis() {
       const requests = await res.json();
       const hasPending = requests.length > 0;
       setHasPendingRequest(hasPending);
-      // Store the most recent request (denied requests will have denial reason)
+      // Store the most recent request
       if (hasPending && requests.length > 0) {
         // Sort by requestID descending to get the most recent
         const sortedRequests = requests.sort((a: any, b: any) => b.requestID - a.requestID);
@@ -811,21 +811,9 @@ export default function TelemetryAnalysis() {
           {jobStatus === 'Denied' && (
             <Alert status="error" variant="subtle" borderRadius="md" maxW="600px">
               <AlertIcon />
-              <Box>
-                <Text fontWeight="bold" mb={2}>
-                  This job has been denied
-                </Text>
-                {(pendingRequestData?.denialReason || pendingRequestData?.verificationNotes || pendingRequestData?.notes) && (
-                  <Box mt={2} p={3} bg="red.50" borderRadius="md" borderLeft="4px solid" borderColor="red.500">
-                    <Text fontSize="sm" fontWeight="semibold" mb={1} color="red.700">
-                      Reason for Denial:
-                    </Text>
-                    <Text fontSize="sm" color="red.800" whiteSpace="pre-wrap">
-                      {pendingRequestData.denialReason || pendingRequestData.verificationNotes || pendingRequestData.notes}
-                    </Text>
-                  </Box>
-                )}
-              </Box>
+              <Text fontWeight="bold">
+                This job has been denied
+              </Text>
             </Alert>
           )}  
 
@@ -840,19 +828,6 @@ export default function TelemetryAnalysis() {
               <Button colorScheme="gray" size="lg" isDisabled>
                 Request Currently Pending
               </Button>
-              {pendingRequestData?.status === "Denied" && (pendingRequestData?.denialReason || pendingRequestData?.verificationNotes || pendingRequestData?.notes) && (
-                <Alert status="error" borderRadius="md">
-                  <AlertIcon />
-                  <Box>
-                    <Text fontWeight="bold" mb={1} fontSize="sm">
-                      Your request was denied
-                    </Text>
-                    <Text fontSize="sm" whiteSpace="pre-wrap">
-                      {pendingRequestData.denialReason || pendingRequestData.verificationNotes || pendingRequestData.notes}
-                    </Text>
-                  </Box>
-                </Alert>
-              )}
             </VStack>
           )}
 

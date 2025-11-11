@@ -120,7 +120,7 @@ function calculateQualityScore(telemetryData: any[]): number {
 // Update to mint job when verification is complete AND create token
 router.put('/:id/status', async (req, res) => {
     try {
-      const { status, verificationTimestamp, quality, denialReason } = req.body;
+      const { status, verificationTimestamp, quality } = req.body;
 
       if (!status) {
         return res.status(400).json({ error: "Status is required" });
@@ -135,18 +135,13 @@ router.put('/:id/status', async (req, res) => {
       const updatedRequest = await updateRequestStatus(
         Number(req.params.id), 
         status,
-        verificationTimestamp,
-        denialReason
+        verificationTimestamp
       );
       
       if (!updatedRequest) {
         console.error(`Failed to update request ${req.params.id} with status ${status}`);
-        if (status === 'Denied' && denialReason) {
-          console.error(`Denial reason was: ${denialReason.substring(0, 100)}...`);
-        }
         return res.status(500).json({ 
-          error: "Failed to update request status. Please check server logs for details.",
-          details: status === 'Denied' ? "The denial reason may not have been saved. Please check the database schema." : undefined
+          error: "Failed to update request status. Please check server logs for details."
         });
       }
 
