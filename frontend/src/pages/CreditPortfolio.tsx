@@ -32,6 +32,22 @@ import {
   Spinner,
   Alert,
   AlertIcon,
+  Drawer,
+  DrawerBody,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerCloseButton,
+  Divider,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  TableContainer,
+  StatHelpText,
 } from "@chakra-ui/react";
 
 type Token = {
@@ -65,6 +81,23 @@ type GroupedToken = {
   retiredAt: string | null;
 };
 
+type Job = {
+  jobID: number;
+  operatorID: number;
+  toolID: number;
+  status: string;
+  dateCreated: string;
+  jobTitle: string;
+};
+
+type TelemetryData = {
+  telemetryID: number;
+  jobID: number;
+  Approved: boolean;
+  timeUploaded: string;
+  metadata: any;
+};
+
 export default function CreditPortfolioPage() {
   const API =
     import.meta.env.VITE_API_BASE_URL ||
@@ -92,6 +125,17 @@ export default function CreditPortfolioPage() {
   const [isCreatingListing, setIsCreatingListing] = useState(false);
   const [fetchingTokens, setFetchingTokens] = useState(false);
   const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
+
+  // Detail drawer state
+  const { 
+    isOpen: isDetailOpen, 
+    onOpen: onDetailOpen, 
+    onClose: onDetailClose 
+  } = useDisclosure();
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [jobTokens, setJobTokens] = useState<Token[]>([]);
+  const [telemetryData, setTelemetryData] = useState<TelemetryData[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   // Track which job IDs have tokens on marketplace
   const [jobsWithTokensOnMarketplace, setJobsWithTokensOnMarketplace] = useState<Set<number>>(new Set());
@@ -219,8 +263,6 @@ export default function CreditPortfolioPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Minted":
-        return "yellow";
-      case "Ready for Minting":
         return "purple";
       case "On The Marketplace":
         return "green";
@@ -236,6 +278,51 @@ export default function CreditPortfolioPage() {
     if (quality >= 70) return "blue";
     if (quality >= 50) return "yellow";
     return "red";
+  };
+
+  // Handle opening detail drawer
+  const handleViewDetails = async (e: React.MouseEvent, groupedToken: GroupedToken) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setLoadingDetails(true);
+    onDetailOpen();
+    
+    try {
+      // Fetch job details
+      const jobRes = await fetch(`${API}/jobs/${groupedToken.jobID}`);
+      if (!jobRes.ok) throw new Error("Failed to fetch job details");
+      const jobData: Job = await jobRes.json();
+      setSelectedJob(jobData);
+
+      // Fetch all tokens for this job
+      const tokensRes = await fetch(`${API}/tokens/owner/${myOperatorID}`);
+      if (!tokensRes.ok) throw new Error("Failed to fetch tokens");
+      const allTokens: Token[] = await tokensRes.json();
+      const filteredTokens = allTokens.filter(t => t.jobID === groupedToken.jobID);
+      setJobTokens(filteredTokens);
+
+      // Fetch telemetry data for this job
+      const telemetryRes = await fetch(`${API}/telemetrydata/job/${groupedToken.jobID}`);
+      if (telemetryRes.ok) {
+        const telemetryDataResponse: TelemetryData[] = await telemetryRes.json();
+        setTelemetryData(telemetryDataResponse);
+      } else {
+        setTelemetryData([]);
+      }
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load details",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      console.error("Error loading details:", error);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   // Handle opening the listing modal and fetching tokens for the job
@@ -469,12 +556,7 @@ export default function CreditPortfolioPage() {
               transform: "translateY(-4px)",
               boxShadow: "lg",
             }}
-            onClick={(e) => {
-              // Only navigate if not clicking on the List for Sale button
-              if (!(e.target as HTMLElement).closest('button')) {
-                window.location.href = `/telemetry/${g.jobID}`;
-              }
-            }}
+            onClick={(e) => handleViewDetails(e, g)}
           >
             <CardHeader>
               <HStack justify="space-between">
@@ -567,6 +649,227 @@ export default function CreditPortfolioPage() {
           </Text>
         </Box>
       )}
+
+      {/* Detail Drawer */}
+      <Drawer
+        isOpen={isDetailOpen}
+        placement="right"
+        onClose={onDetailClose}
+        size="lg"
+      >
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader>
+            {selectedJob && (
+              <VStack align="start" spacing={1}>
+                <Heading size="lg">Job #{selectedJob.jobID}</Heading>
+                <Text fontSize="md" color="gray.600">Job Title: {selectedJob.jobTitle}</Text>
+              </VStack>
+            )}
+          </DrawerHeader>
+
+          <DrawerBody>
+            {loadingDetails ? (
+              <Box textAlign="center" py={10}>
+                <Spinner size="xl" />
+                <Text mt={4}>Loading details...</Text>
+              </Box>
+            ) : (
+              <VStack align="stretch" spacing={6}>
+                {/* Job Information */}
+                {selectedJob && (
+                  <Box>
+                    <Heading size="md" mb={3}>Job Information</Heading>
+                    <Card>
+                      <CardBody>
+                        <VStack align="stretch" spacing={3}>
+                          <HStack justify="space-between">
+                            <Text fontWeight="bold">Status:</Text>
+                            <Badge colorScheme={getStatusColor(selectedJob.status)}>
+                              {selectedJob.status}
+                            </Badge>
+                          </HStack>
+                          <HStack justify="space-between">
+                            <Text fontWeight="bold">Operator:</Text>
+                            <Text>{getOperatorName(selectedJob.operatorID)}</Text>
+                          </HStack>
+                          <HStack justify="space-between">
+                            <Text fontWeight="bold">Created:</Text>
+                            <Text>{new Date(selectedJob.dateCreated).toLocaleDateString()}</Text>
+                          </HStack>
+                          <HStack justify="space-between">
+                            <Text fontWeight="bold">Tool ID:</Text>
+                            <Text>{selectedJob.toolID}</Text>
+                          </HStack>
+                        </VStack>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                )}
+
+                {/* Token Statistics */}
+                <Box>
+                  <Heading size="md" mb={3}>Token Information</Heading>
+                  <SimpleGrid columns={2} spacing={4}>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Total Tokens</StatLabel>
+                          <StatNumber>{jobTokens.length}</StatNumber>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Avg Quality</StatLabel>
+                          <StatNumber>
+                            {jobTokens.length > 0
+                              ? (jobTokens.reduce((sum, t) => sum + t.quality, 0) / jobTokens.length).toFixed(1)
+                              : 0}%
+                          </StatNumber>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Total Credits</StatLabel>
+                          <StatNumber>
+                            {jobTokens.reduce((sum, t) => sum + t.creditProportion, 0).toFixed(2)}
+                          </StatNumber>
+                          <StatHelpText>tCO2e</StatHelpText>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                    <Card>
+                      <CardBody>
+                        <Stat>
+                          <StatLabel>Minted Tokens</StatLabel>
+                          <StatNumber>
+                            {jobTokens.filter(t => t.status === "Minted" || t.status === "On The Marketplace" || t.status === "Retired").length}
+                          </StatNumber>
+                        </Stat>
+                      </CardBody>
+                    </Card>
+                  </SimpleGrid>
+                </Box>
+
+                {/* Token Quality */}
+                {jobTokens.length > 0 && (
+                  <Box>
+                    <Heading size="md" mb={3}>Token Quality</Heading>
+                    <Card>
+                      <CardBody>
+                        <Text fontSize="2xl" fontWeight="bold">
+                          {jobTokens[0].quality}%
+                        </Text>
+                      </CardBody>
+                    </Card>
+                  </Box>
+                )}
+
+                {/* Telemetry Data */}
+                <Box>
+                  <Heading size="md" mb={3}>Telemetry Data</Heading>
+                  {telemetryData.length === 0 ? (
+                    <Card>
+                      <CardBody>
+                        <Alert status="info">
+                          <AlertIcon />
+                          No telemetry data available for this job.
+                        </Alert>
+                      </CardBody>
+                    </Card>
+                  ) : (
+                    <VStack align="stretch" spacing={3}>
+  
+                      <Card>
+                        <CardBody>
+                          <Heading size="sm" mb={3}>Recent Telemetry Uploads</Heading>
+                          <TableContainer>
+                            <Table size="sm">
+                              <Thead>
+                                <Tr>
+                                  <Th>Upload Time</Th>
+                                  <Th>Status</Th>
+                                </Tr>
+                              </Thead>
+                              <Tbody>
+                                {telemetryData.slice(0, 5).map((data) => (
+                                  <Tr key={data.telemetryID}>
+                                    <Td>{new Date(data.timeUploaded).toLocaleString()}</Td>
+                                    <Td>
+                                      <Badge colorScheme={data.Approved ? "green" : "yellow"}>
+                                        {data.Approved ? "Approved" : "Pending"}
+                                      </Badge>
+                                    </Td>
+                                  </Tr>
+                                ))}
+                              </Tbody>
+                            </Table>
+                          </TableContainer>
+                          {telemetryData.length > 5 && (
+                            <Text fontSize="sm" color="gray.500" mt={2}>
+                              Showing 5 of {telemetryData.length} uploads
+                            </Text>
+                          )}
+                        </CardBody>
+                      </Card>
+                    </VStack>
+                  )}
+                </Box>
+
+                {/* Individual Tokens List */}
+                <Box>
+                  <Heading size="md" mb={3}>Token Details</Heading>
+                  <Card>
+                    <CardBody>
+                      <TableContainer>
+                        <Table size="sm">
+                          <Thead>
+                            <Tr>
+                              <Th>Token ID</Th>
+                              <Th>Quality</Th>
+                              <Th>Credits</Th>
+                              <Th>Status</Th>
+                            </Tr>
+                          </Thead>
+                          <Tbody>
+                            {jobTokens.map((token) => (
+                              <Tr key={token.tokenID}>
+                                <Td>#{token.tokenID}</Td>
+                                <Td>
+                                  <Badge colorScheme={getQualityColor(token.quality)}>
+                                    {token.quality}%
+                                  </Badge>
+                                </Td>
+                                <Td>{token.creditProportion.toFixed(2)}</Td>
+                                <Td>
+                                  <Badge colorScheme={getStatusColor(token.status)} size="sm">
+                                    {token.status}
+                                  </Badge>
+                                </Td>
+                              </Tr>
+                            ))}
+                          </Tbody>
+                        </Table>
+                      </TableContainer>
+                    </CardBody>
+                  </Card>
+                </Box>
+              </VStack>
+            )}
+          </DrawerBody>
+
+          <DrawerFooter>
+            <Button variant="outline" mr={3} onClick={onDetailClose}>
+              Close
+            </Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
 
       {/* Create listing modal */}
       <Modal isOpen={isListingOpen} onClose={onListingClose} size="md">
