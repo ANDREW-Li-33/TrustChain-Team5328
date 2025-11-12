@@ -8,6 +8,7 @@ import VerifierEvidenceReview from "./pages/VerifierEvidenceReview";
 import RegistrationPage from "./pages/Registration";
 import HomePage from "./pages/Home";
 import { Protected } from "./pages/ProtectedPage";
+import { RoleProtected } from "./components/RoleProtected";
 import TelemetryAnalysis from "./pages/TelemetryAnalysis";
 import NavBar from "./components/NavBar";
 import JobsPage from "./pages/Jobs";
@@ -27,8 +28,10 @@ function App() {
         path="/"
         element={
           <Protected>
-            <NavBar />
-            <OperatorDashboard />
+            <RoleProtected allowedRoles={["operator", "slb admin"]}>
+              <NavBar />
+              <OperatorDashboard />
+            </RoleProtected>
           </Protected>
         }
       />
@@ -36,8 +39,10 @@ function App() {
         path="/operator"
         element={
           <Protected>
-            <NavBar />
-            <OperatorDashboard />
+            <RoleProtected allowedRoles={["operator", "slb admin"]}>
+              <NavBar />
+              <OperatorDashboard />
+            </RoleProtected>
           </Protected>
         }
       />
@@ -63,8 +68,10 @@ function App() {
         path="/jobs"
         element={
           <Protected>
-            <NavBar />
-            <JobsPage />
+            <RoleProtected allowedRoles={["operator", "slb admin"]}>
+              <NavBar />
+              <JobsPage />
+            </RoleProtected>
           </Protected>
         }
       />
@@ -97,8 +104,10 @@ function App() {
         path="/telemetry"
         element={
           <Protected>
-            <NavBar />
-            <TelemetryAnalysis />
+            <RoleProtected allowedRoles={["operator", "slb admin"]}>
+              <NavBar />
+              <TelemetryAnalysis />
+            </RoleProtected>
           </Protected>
         }
       />
@@ -106,8 +115,10 @@ function App() {
         path="/telemetry/:jobId"
         element={
           <Protected>
-            <NavBar />
-            <TelemetryAnalysis />
+            <RoleProtected allowedRoles={["operator", "slb admin"]}>
+              <NavBar />
+              <TelemetryAnalysis />
+            </RoleProtected>
           </Protected>
         }
       />
