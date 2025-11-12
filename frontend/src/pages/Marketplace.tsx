@@ -438,6 +438,24 @@ export default function MarketplacePage() {
             if (listingPrice > parseFloat(maxPrice)) return false;
           }
         }
+        
+        // Operator filters - apply quality and price filters client-side
+        if (isOperator && !isAdmin) {
+          // Quality filter - operators see minQuality
+          if (minQuality) {
+            const listingMinQuality = listing.minQuality || 0;
+            if (listingMinQuality < parseFloat(minQuality)) return false;
+          }
+          // Price filters
+          if (minPrice) {
+            const listingPrice = listing.Price || 0;
+            if (listingPrice < parseFloat(minPrice)) return false;
+          }
+          if (maxPrice) {
+            const listingPrice = listing.Price || 0;
+            if (listingPrice > parseFloat(maxPrice)) return false;
+          }
+        }
 
         // Recency filter (only applied if date filters are not active)
         // If admin is using server-side date filters, skip client-side recency filter
@@ -473,6 +491,7 @@ export default function MarketplacePage() {
       dateBefore,
       users,
       isAdmin,
+      isOperator,
       isDateFilterActive,
       isRecencyFilterActive,
       statusFilter,
@@ -663,6 +682,72 @@ export default function MarketplacePage() {
             </Button>
           </WrapItem>
         </Wrap>
+
+        {/* Operator filters - Price and Quality */}
+        {isOperator && !isAdmin && (
+          <>
+            <Divider />
+            <Text fontWeight="semibold" color="gray.600">
+              Filters
+            </Text>
+
+            <Wrap spacing={3} align="center">
+              {/* Minimum Quality filter */}
+              <WrapItem>
+                <FormControl>
+                  <FormLabel fontSize="sm" mb={1}>
+                    Min Quality (%)
+                  </FormLabel>
+                  <Input
+                    type="number"
+                    placeholder="Any"
+                    value={minQuality}
+                    onChange={(e) => setMinQuality(e.target.value)}
+                    min="0"
+                    max="100"
+                    w="120px"
+                  />
+                </FormControl>
+              </WrapItem>
+
+              {/* Min Price filter */}
+              <WrapItem>
+                <FormControl>
+                  <FormLabel fontSize="sm" mb={1}>
+                    Min Price ($)
+                  </FormLabel>
+                  <Input
+                    type="number"
+                    placeholder="Any"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                    w="120px"
+                  />
+                </FormControl>
+              </WrapItem>
+
+              {/* Max Price filter */}
+              <WrapItem>
+                <FormControl>
+                  <FormLabel fontSize="sm" mb={1}>
+                    Max Price ($)
+                  </FormLabel>
+                  <Input
+                    type="number"
+                    placeholder="Any"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                    w="120px"
+                  />
+                </FormControl>
+              </WrapItem>
+            </Wrap>
+          </>
+        )}
 
         {/* Admin-only advanced filters */}
         {isAdmin && (
@@ -862,26 +947,31 @@ export default function MarketplacePage() {
       </VStack>
 
       {/* Active filters summary */}
-      {isAdmin && (
+      {(isAdmin || isOperator) && (
         <HStack mb={4} flexWrap="wrap" spacing={2}>
-          {isRecencyFilterActive && (
+          {isAdmin && isRecencyFilterActive && (
             <Badge colorScheme="blue" px={2} py={1}>
               {getRecencyDisplayText(recencyFilter)}
             </Badge>
           )}
-          {dateAfter && (
+          {isAdmin && dateAfter && (
             <Badge colorScheme="green" px={2} py={1}>
               After: {new Date(dateAfter).toLocaleDateString(undefined, { timeZone: "UTC" })}
             </Badge>
           )}
-          {dateBefore && (
+          {isAdmin && dateBefore && (
             <Badge colorScheme="green" px={2} py={1}>
               Before: {new Date(dateBefore).toLocaleDateString(undefined, { timeZone: "UTC" })}
             </Badge>
           )}
-          {companyFilter !== "all" && (
+          {isAdmin && companyFilter !== "all" && (
             <Badge colorScheme="orange" px={2} py={1}>
               Company: {companyFilter}
+            </Badge>
+          )}
+          {minQuality && (
+            <Badge colorScheme="purple" px={2} py={1}>
+              Min Quality: {parseFloat(minQuality)}%
             </Badge>
           )}
           {minPrice && (
