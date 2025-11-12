@@ -1,5 +1,5 @@
 import express from 'express';
-import { addListing, getActiveListings, getActiveListingsWithDetails, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
+import { addListing, getActiveListingsWithDetails, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
     completeListing, changeListingStatus, getListingsByDateRange, getPreviousListingsBySeller
  } from '../database/listings';
 
@@ -30,7 +30,8 @@ router.post('/', async (req, res) => {
 });
 
 router.get('/active', async (req, res) => {
-  const listings = await getActiveListings();
+  // Use getActiveListingsWithDetails to always return quality data
+  const listings = await getActiveListingsWithDetails();
   if (!listings) return res.status(500).json({ error: 'Failed to fetch active listings' });
   res.json(listings);
 });

@@ -385,9 +385,27 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
 
 
 export async function getListingsByDateRange(startDate: string | null, endDate: string | null) {
+  // Use getActiveListingsWithDetails with date filters to get quality data
+  const filters: any = {};
+  if (startDate) {
+    filters.dateAfter = startDate;
+  }
+  if (endDate) {
+    filters.dateBefore = endDate;
+  }
+  
+  // If no date filters, get all listings with details
+  if (!startDate && !endDate) {
+    return await getActiveListingsWithDetails();
+  }
+  
+  // Get all listings first, then filter by date range
+  // Since getActiveListingsWithDetails only returns Active listings, we need to handle all statuses
   let query = supabase.from('Listings').select('*');
 
+  // Try different date column names - Supabase will use the first one that exists
   if (startDate) {
+    // Try createdAt (lowercase) first
     query = query.gte('createdAt', startDate);
   }
 
@@ -395,14 +413,98 @@ export async function getListingsByDateRange(startDate: string | null, endDate: 
     query = query.lte('createdAt', endDate);
   }
 
-  const { data, error } = await query;
+  let { data: listings, error } = await query;
+  
+  // If error is about column not found, try with different column names
+  if (error && (error.message?.includes('createdAt') || error.message?.includes('column') || error.message?.includes('schema cache'))) {
+    // Retry with CreatedAt (capitalized)
+    let retryQuery = supabase.from('Listings').select('*');
+    if (startDate) {
+      retryQuery = retryQuery.gte('CreatedAt', startDate);
+    }
+    if (endDate) {
+      retryQuery = retryQuery.lte('CreatedAt', endDate);
+    }
+    const retryResult = await retryQuery;
+    listings = retryResult.data;
+    error = retryResult.error;
+  }
 
   if (error) {
     console.error('Error fetching listings by date range:', error);
-    return null;
+    // Fallback: try without date filters and filter client-side
+    const allListings = await getActiveListingsWithDetails();
+    if (!allListings) return null;
+    
+    const normalizeDate = (listing: any): string => {
+      return listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString();
+    };
+    
+    return allListings.filter((listing: any) => {
+      const listingDate = normalizeDate(listing);
+      if (startDate && listingDate < startDate) return false;
+      if (endDate && listingDate > endDate) return false;
+      return true;
+    });
   }
 
-  return data;
+  if (!listings || listings.length === 0) {
+    return [];
+  }
+
+  // Get all users to map seller info
+  const { data: allUsers } = await supabase.from('Users').select('userID, email, organizationName, role');
+
+  // Enrich listings with quality data
+  const listingsWithDetails = await Promise.all(
+    listings.map(async (listing: any) => {
+      const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
+      const normalizedDate = listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString();
+      
+      // Get tokens for this listing
+      const { data: tokenLinks } = await supabase
+        .from('listingOfTokens')
+        .select('tokenID')
+        .eq('listingID', listing.listingID);
+
+      if (!tokenLinks || tokenLinks.length === 0) {
+        return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+      }
+
+      const tokenIDs = tokenLinks.map((t: any) => t.tokenID);
+      
+      const { data: tokens } = await supabase
+        .from('Tokens')
+        .select('tokenID, quality, creditProportion')
+        .in('tokenID', tokenIDs);
+
+      if (!tokens || tokens.length === 0) {
+        return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+      }
+
+      const qualities = tokens.map((t: any) => t.quality || 0).filter((q: number) => q > 0);
+      if (qualities.length === 0) {
+        return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+      }
+      
+      const minQuality = Math.min(...qualities);
+      const maxQuality = Math.max(...qualities);
+      const avgQuality = qualities.reduce((sum: number, q: number) => sum + q, 0) / qualities.length;
+
+      return {
+        ...listing,
+        CreatedAt: normalizedDate,
+        seller: seller || null,
+        tokens: tokens.map((t: any) => t.tokenID),
+        tokenDetails: tokens,
+        minQuality,
+        maxQuality,
+        avgQuality,
+      };
+    })
+  );
+
+  return listingsWithDetails;
 }
 
 

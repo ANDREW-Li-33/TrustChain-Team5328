@@ -154,16 +154,16 @@ export default function MarketplacePage() {
       
       const listingsData = await lRes.json();
       
-      // Enrich listings with seller info
+      // Process listings - quality data should already be included from backend
       const processedListings = (listingsData || []).map((listing: any) => {
-        const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
+        const seller = listing.seller || allUsers?.find((u: any) => u.userID === listing.sellerID);
         return {
           ...listing,
           seller: seller || null,
           tokens: listing.tokens || [],
-          minQuality: listing.minQuality || 0,
-          maxQuality: listing.maxQuality || 0,
-          avgQuality: listing.avgQuality || 0,
+          minQuality: listing.minQuality ?? 0,
+          maxQuality: listing.maxQuality ?? 0,
+          avgQuality: listing.avgQuality ?? 0,
           CreatedAt: listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString(),
         };
       });
@@ -241,16 +241,16 @@ export default function MarketplacePage() {
   
       listingsData = await lRes.json();
       
-      // Enrich listings with seller info for display
+      // Process listings - quality data should already be included from backend
       const processedListings = (listingsData || []).map((listing: any) => {
-        const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
+        const seller = listing.seller || allUsers?.find((u: any) => u.userID === listing.sellerID);
         return {
           ...listing,
           seller: seller || null,
           tokens: listing.tokens || [],
-          minQuality: listing.minQuality || 0,
-          maxQuality: listing.maxQuality || 0,
-          avgQuality: listing.avgQuality || 0,
+          minQuality: listing.minQuality ?? 0,
+          maxQuality: listing.maxQuality ?? 0,
+          avgQuality: listing.avgQuality ?? 0,
           // Normalize date field
           CreatedAt: listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString(),
         };
@@ -289,8 +289,10 @@ export default function MarketplacePage() {
   };
 
   // Get unique company names for filter dropdown - use allListingsForDropdown, not filtered listings
+  // This ensures all companies are always shown in the dropdown regardless of current filters
   const uniqueCompanies = useMemo(() => {
     const companies = new Set<string>();
+    // Always use allListingsForDropdown to show all available companies
     allListingsForDropdown.forEach((listing) => {
       const companyName = listing.seller?.organizationName || getSellerName(listing.sellerID);
       if (companyName && companyName !== "Unknown") {
@@ -298,7 +300,7 @@ export default function MarketplacePage() {
       }
     });
     return Array.from(companies).sort();
-  }, [allListingsForDropdown, users]);
+  }, [allListingsForDropdown]);
 
   // Helper function to check if a date is within a recency period
   const isWithinRecency = (dateString: string, recency: string): boolean => {
@@ -805,7 +807,12 @@ export default function MarketplacePage() {
           <CardBody>
             <Stat>
               <StatLabel>Total Companies</StatLabel>
-              <StatNumber>{uniqueCompanies.length}</StatNumber>
+              <StatNumber>
+                {new Set(filtered.map((l) => {
+                  const companyName = l.seller?.organizationName || getSellerName(l.sellerID);
+                  return companyName && companyName !== "Unknown" ? companyName : null;
+                }).filter(Boolean)).size}
+              </StatNumber>
             </Stat>
           </CardBody>
         </Card>
@@ -816,12 +823,14 @@ export default function MarketplacePage() {
                 <Stat>
                   <StatLabel>Avg Quality</StatLabel>
                   <StatNumber>
-                    {filtered.length > 0
-                      ? Math.round(
-                          filtered.reduce((sum, l) => sum + (l.avgQuality || 0), 0) /
-                            filtered.length
-                        )
-                      : 0}
+                    {(() => {
+                      const listingsWithQuality = filtered.filter((l) => (l.avgQuality ?? 0) > 0);
+                      if (listingsWithQuality.length === 0) return 0;
+                      return Math.round(
+                        listingsWithQuality.reduce((sum, l) => sum + (l.avgQuality ?? 0), 0) /
+                          listingsWithQuality.length
+                      );
+                    })()}
                     %
                   </StatNumber>
                 </Stat>
