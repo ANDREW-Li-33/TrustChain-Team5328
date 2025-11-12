@@ -94,6 +94,7 @@ export default function MarketplacePage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserRow | null>(null);
   const [isOperator, setIsOperator] = useState(false);
+  const [isBuyer, setIsBuyer] = useState(false);
 
   // Modal state for purchase confirmation
   const { isOpen: isPurchaseOpen, onOpen: onPurchaseOpen, onClose: onPurchaseClose } = useDisclosure();
@@ -213,6 +214,7 @@ export default function MarketplacePage() {
         const userRole = me.role?.toLowerCase();
         setIsAdmin(userRole === "slb admin" || userRole === "slb_admin");
         setIsOperator(userRole === "operator");
+        setIsBuyer(userRole === "buyer");
       }
   
       // Determine if user is admin
@@ -439,9 +441,9 @@ export default function MarketplacePage() {
           }
         }
         
-        // Operator filters - apply quality and price filters client-side
-        if (isOperator && !isAdmin) {
-          // Quality filter - operators see minQuality
+        // Operator and Buyer filters - apply quality and price filters client-side
+        if ((isOperator || isBuyer) && !isAdmin) {
+          // Quality filter - operators and buyers see minQuality
           if (minQuality) {
             const listingMinQuality = listing.minQuality || 0;
             if (listingMinQuality < parseFloat(minQuality)) return false;
@@ -492,6 +494,7 @@ export default function MarketplacePage() {
       users,
       isAdmin,
       isOperator,
+      isBuyer,
       isDateFilterActive,
       isRecencyFilterActive,
       statusFilter,
@@ -683,8 +686,8 @@ export default function MarketplacePage() {
           </WrapItem>
         </Wrap>
 
-        {/* Operator filters - Price and Quality */}
-        {isOperator && !isAdmin && (
+        {/* Operator and Buyer filters - Price and Quality */}
+        {(isOperator || isBuyer) && !isAdmin && (
           <>
             <Divider />
             <Text fontWeight="semibold" color="gray.600">
@@ -947,7 +950,7 @@ export default function MarketplacePage() {
       </VStack>
 
       {/* Active filters summary */}
-      {(isAdmin || isOperator) && (
+      {(isAdmin || isOperator || isBuyer) && (
         <HStack mb={4} flexWrap="wrap" spacing={2}>
           {isAdmin && isRecencyFilterActive && (
             <Badge colorScheme="blue" px={2} py={1}>
