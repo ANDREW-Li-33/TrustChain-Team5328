@@ -108,8 +108,13 @@ export default function JobsPage() {
       const operatorID = me.userID;
       const userRole = me.role?.toLowerCase();
 
+      // Prevent buyers from accessing jobs
+      if (userRole === "buyer") {
+        throw new Error("Access denied. Buyers cannot access jobs.");
+      }
+
       setMyOperatorID(operatorID);
-      setIsAdmin(userRole === "slb admin");
+      setIsAdmin(userRole === "slb admin" || userRole === "slb_admin");
 
       // Get jobs
       const endpoint = userRole === "slb admin" 
