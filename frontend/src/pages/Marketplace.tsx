@@ -114,6 +114,8 @@ export default function MarketplacePage() {
   const [sellerIDFilter, setSellerIDFilter] = useState<string>("");
   const [tokenIDFilter, setTokenIDFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
 
 
   // Determine if date filters are active
@@ -150,7 +152,11 @@ export default function MarketplacePage() {
       }
       
       const lRes = await fetch(endpoint);
-      if (!lRes.ok) return;
+      if (!lRes.ok) {
+        console.error(`Failed to fetch all listings for dropdown: ${lRes.status} ${lRes.statusText}`);
+        console.error("Endpoint:", endpoint);
+        return;
+      }
       
       const listingsData = await lRes.json();
       
@@ -181,9 +187,14 @@ export default function MarketplacePage() {
       return;
     }
   
+    let endpoint: string = "";
+    
     try {
       // Get all users for seller info
       const uRes = await fetch(`${API}/users`);
+      if (!uRes.ok) {
+        throw new Error(`Failed to fetch users: ${uRes.status} ${uRes.statusText}`);
+      }
       const allUsers: UserRow[] = await uRes.json();
       setUsers(allUsers);
   
@@ -206,21 +217,21 @@ export default function MarketplacePage() {
   
       // Determine if user is admin
       const userIsAdmin = me?.role?.toLowerCase() === "slb admin" || me?.role?.toLowerCase() === "slb_admin";
-  
-      let endpoint: string;
-      let listingsData: any[];
+
+      let listingsData: any[] = [];
       
       if (userIsAdmin) {
-        // If status filter is "Complete", we need all listings (filtered endpoint only returns active)
+        // If status filter is "all" or "Complete", we need all listings (filtered endpoint only returns active)
         // Otherwise, check if any admin filters are active
-        const needsAllListings = statusFilter === "Complete";
-        const hasAdminFilters = minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all");
+        const needsAllListings = statusFilter === "all" || statusFilter === "Complete";
+        const hasAdminFilters = minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all") || minPrice || maxPrice;
         
         if (needsAllListings || !hasAdminFilters) {
           // Get all listings (for status filtering or when no server-side filters)
           endpoint = `${API}/listings/date-range?start=1900-01-01T00:00:00Z&end=2099-12-31T23:59:59Z`;
         } else {
-          // Use filtered endpoint (only returns active listings, status filter will be applied client-side for "Active" or "all")
+          // Use filtered endpoint (only returns active listings, status filter will be applied client-side for "Active")
+          // Only use this when statusFilter is "Active" and we have admin filters
           const params = new URLSearchParams();
           if (minQuality) params.append("minQuality", minQuality);
           if (sellerIDFilter) params.append("sellerID", sellerIDFilter);
@@ -237,8 +248,18 @@ export default function MarketplacePage() {
       }
   
       const lRes = await fetch(endpoint);
-      if (!lRes.ok) throw new Error(`Listings fetch failed (${lRes.status})`);
-  
+      if (!lRes.ok) {
+        const errorText = await lRes.text();
+        let errorMessage = `Listings fetch failed (${lRes.status})`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
       listingsData = await lRes.json();
       
       // Process listings - quality data should already be included from backend
@@ -257,13 +278,18 @@ export default function MarketplacePage() {
       });
       
       setListings(processedListings);
+      setErr(null); // Clear any previous errors
     } catch (e: any) {
-      setErr(e.message || "Failed to load listings");
+      const errorMessage = e.message || "Failed to load listings";
+      console.error("Error fetching listings:", e);
+      console.error("Endpoint attempted:", endpoint || "Not set");
+      console.error("API base URL:", API);
+      setErr(errorMessage);
       toast({
         title: "Error",
-        description: e.message || "Failed to load listings",
+        description: errorMessage,
         status: "error",
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -279,7 +305,7 @@ export default function MarketplacePage() {
   // Fetch filtered listings when filters change
   useEffect(() => {
     fetchListings();
-  }, [API, user, minQuality, sellerIDFilter, tokenIDFilter, dateAfter, dateBefore, companyFilter, statusFilter]);
+  }, [API, user, minQuality, sellerIDFilter, tokenIDFilter, dateAfter, dateBefore, companyFilter, statusFilter, minPrice, maxPrice]);
 
   // Get seller name from users array
   const getSellerName = (sellerID: number | null) => {
@@ -363,12 +389,13 @@ export default function MarketplacePage() {
         const matchesStatus = statusFilter === "all" || listing.Status === statusFilter;
 
         // Admin filters (only apply client-side if we fetched all listings, not filtered endpoint)
-        // Check if we're using server-side filters by checking if we have admin filters but status is not "Complete"
-        const usingServerSideFilters = isAdmin && statusFilter !== "Complete" && (minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all"));
+        // Check if we're using server-side filters by checking if we have admin filters but status is not "Complete" or "all"
+        // Note: Price filters are always client-side since backend doesn't support them in filtered endpoint
+        const usingServerSideFilters = isAdmin && statusFilter === "Active" && (minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all"));
         
         let matchesAdminFilters = true;
         if (isAdmin && !usingServerSideFilters) {
-          // Apply admin filters client-side
+          // Apply admin filters client-side (when we fetched all listings)
           if (minQuality) {
             const listingMinQuality = listing.minQuality || 0;
             if (listingMinQuality < parseFloat(minQuality)) matchesAdminFilters = false;
@@ -382,6 +409,33 @@ export default function MarketplacePage() {
           if (companyFilter !== "all") {
             const sellerName = listing.seller?.organizationName || getSellerName(listing.sellerID);
             if (sellerName !== companyFilter) matchesAdminFilters = false;
+          }
+          // Date filters - only apply client-side if we didn't use server-side filtering
+          if (dateAfter || dateBefore) {
+            if (!isWithinDateRange(listing.CreatedAt, dateAfter, dateBefore)) {
+              matchesAdminFilters = false;
+            }
+          }
+          // Price filters - always client-side
+          if (minPrice) {
+            const listingPrice = listing.Price || 0;
+            if (listingPrice < parseFloat(minPrice)) matchesAdminFilters = false;
+          }
+          if (maxPrice) {
+            const listingPrice = listing.Price || 0;
+            if (listingPrice > parseFloat(maxPrice)) matchesAdminFilters = false;
+          }
+        }
+        
+        // Price filters - also apply when using server-side filters (since price isn't supported server-side)
+        if (isAdmin && usingServerSideFilters) {
+          if (minPrice) {
+            const listingPrice = listing.Price || 0;
+            if (listingPrice < parseFloat(minPrice)) return false;
+          }
+          if (maxPrice) {
+            const listingPrice = listing.Price || 0;
+            if (listingPrice > parseFloat(maxPrice)) return false;
           }
         }
 
@@ -425,7 +479,9 @@ export default function MarketplacePage() {
       minQuality,
       sellerIDFilter,
       tokenIDFilter,
-      companyFilter
+      companyFilter,
+      minPrice,
+      maxPrice
     ]
   );
 
@@ -439,6 +495,8 @@ export default function MarketplacePage() {
     setSellerIDFilter("");
     setTokenIDFilter("");
     setStatusFilter("all");
+    setMinPrice("");
+    setMaxPrice("");
   };
 
   const getQualityColor = (quality: number) => {
@@ -743,6 +801,42 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
+              {/* Min Price filter */}
+              <WrapItem>
+                <FormControl>
+                  <FormLabel fontSize="sm" mb={1}>
+                    Min Price ($)
+                  </FormLabel>
+                  <Input
+                    type="number"
+                    placeholder="Any"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                    w="120px"
+                  />
+                </FormControl>
+              </WrapItem>
+
+              {/* Max Price filter */}
+              <WrapItem>
+                <FormControl>
+                  <FormLabel fontSize="sm" mb={1}>
+                    Max Price ($)
+                  </FormLabel>
+                  <Input
+                    type="number"
+                    placeholder="Any"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                    w="120px"
+                  />
+                </FormControl>
+              </WrapItem>
+
               {/* Status filter */}
               <WrapItem>
                 <FormControl>
@@ -788,6 +882,16 @@ export default function MarketplacePage() {
           {companyFilter !== "all" && (
             <Badge colorScheme="orange" px={2} py={1}>
               Company: {companyFilter}
+            </Badge>
+          )}
+          {minPrice && (
+            <Badge colorScheme="teal" px={2} py={1}>
+              Min Price: ${parseFloat(minPrice).toFixed(2)}
+            </Badge>
+          )}
+          {maxPrice && (
+            <Badge colorScheme="teal" px={2} py={1}>
+              Max Price: ${parseFloat(maxPrice).toFixed(2)}
             </Badge>
           )}
         </HStack>

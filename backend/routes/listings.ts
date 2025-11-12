@@ -142,18 +142,24 @@ router.post('/complete/:id', async (req, res) => {
 });
 
 router.get('/date-range', async (req, res) => {
-  const { start, end } = req.query;
+  try {
+    const { start, end } = req.query;
 
-  const listings = await getListingsByDateRange(
-    start ? String(start) : null,
-    end ? String(end) : null
-  );
+    const listings = await getListingsByDateRange(
+      start ? String(start) : null,
+      end ? String(end) : null
+    );
 
-  if (!listings) {
-    return res.status(404).json({ error: "No listings found in that range" });
+    if (listings === null) {
+      return res.status(500).json({ error: "Failed to fetch listings" });
+    }
+
+    // Return empty array if no listings found (not an error)
+    res.status(200).json(listings || []);
+  } catch (error) {
+    console.error('Error in /date-range:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  res.status(200).json(listings);
 });
 
 
