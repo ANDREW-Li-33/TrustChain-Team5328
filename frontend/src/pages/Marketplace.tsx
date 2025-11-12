@@ -1228,11 +1228,7 @@ export default function MarketplacePage() {
                       <Text fontWeight="bold">Number of Tokens:</Text>
                       <Text>{selectedListing.tokens?.length || 0}</Text>
                     </HStack>
-                    
-                    <HStack justify="space-between" width="100%">
-                      <Text fontWeight="bold">Quality (Min):</Text>
-                      <Text>{selectedListing.minQuality?.toFixed(1) || "N/A"}%</Text>
-                    </HStack>
+                  
                     
                     <Divider />
                     
