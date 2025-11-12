@@ -3,6 +3,7 @@ import { addRequest, getRequests, getRequestByJobID, getOneRequest, getRequestsB
 import { updateJobStatus, getJobByID } from '../database/jobs';
 import { addToken } from '../database/tokens';
 import { getTelemetryDataByJobID } from '../database/telemetrydata';
+import { recordTokenOnChain } from '../blockchain/blockchain';
 
 const router = express.Router();
 
@@ -204,6 +205,9 @@ router.put('/:id/status', async (req, res) => {
         }
         for (let i = 0; i < numTokens; i++) {
           const tokenHash = `${request.jobID}_${request.operatorID}_${i}`;
+
+          const blockchainTokenHash = await recordTokenOnChain(tokenHash);
+          console.log("Blockchain token hash received in pendingrequests.ts: ", blockchainTokenHash);
           
           addToken({
             ownerID: job.operatorID,
@@ -213,6 +217,7 @@ router.put('/:id/status', async (req, res) => {
             mintedAt: new Date().toISOString(),
             retiredAt: null,
             metadata: tokenMetadata as unknown as JSON,
+            blockchainHash: blockchainTokenHash,
             creditProportion: 1,
             tokenHash: tokenHash,
           })

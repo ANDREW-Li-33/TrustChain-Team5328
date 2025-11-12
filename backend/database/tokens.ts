@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient.js';
+import { recordTokenOnChain } from '../blockchain/blockchain.js';
 
 export type TokenStatus = 'Minted' | 'Retired' | 'On The Marketplace'
 
@@ -10,10 +11,11 @@ export async function addToken(currToken: {
   mintedAt?: string;
   retiredAt?: string | null;
   metadata: JSON;
-  blockchainHash?: number;
+  blockchainHash?: string | null;
   creditProportion: number;
   tokenHash: string;
 }) {
+
   const { data, error } = await supabase
     .from('Tokens')
     .insert([
@@ -22,22 +24,23 @@ export async function addToken(currToken: {
         jobID: currToken.jobID,
         quality: currToken.quality,
         status: currToken.status || 'Minted',
-        mintedAt: currToken.mintedAt || null, // defaults to null, will change when minted
+        mintedAt: currToken.mintedAt || new Date().toISOString(),
         retiredAt: currToken.retiredAt || null, // defaults to null, will change when retired
         metadata: currToken.metadata,
-        blockchainHash: currToken.blockchainHash || null, // defaults to null, will change when minted
+        blockchainHash: currToken.blockchainHash,
         creditProportion: currToken.creditProportion || 1,
         tokenHash: currToken.tokenHash,
       },
     ])
     .select(); // return the inserted row(s)
+    console.log("I got here");
 
   if (error) {
     console.error('Error inserting Token:', error);
     return null;
   }
 
-  console.log('Inserted Token:', data);
+  //console.log('Inserted Token:', data);
   return data;
 }
 
@@ -162,22 +165,7 @@ async function testConnection() {
   if (error) {
     console.error('Supabase query error:', error);
   } else {
-    console.log('Supabase Token Data:', data);
+    //console.log('Supabase Token Data:', data);
   }
 }
 
-async function testGetTokensGroupedByOwner() {
-  const ownerID = 67; // ← change to match a real owner in your DB
-  const grouped = await getTokensGroupedByOwner(ownerID);
-
-  if (grouped) {
-    console.log(`Grouped tokens for ownerID ${ownerID}:`);
-    console.log(JSON.stringify(grouped, null, 2));
-  } else {
-    console.log('No tokens found or error occurred.');
-  }
-}
-
-
-
-testGetTokensGroupedByOwner();
