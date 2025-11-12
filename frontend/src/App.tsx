@@ -15,7 +15,6 @@ import CreditPortfolioPage from "./pages/CreditPortfolio";
 import MarketplacePage from "./pages/Marketplace";
 import BuyerPortfolioPage from "./pages/BuyerPortfolio";
 
-
 function App() {
   return (
     <Routes>
@@ -65,7 +64,7 @@ function App() {
         element={
           <Protected>
             <NavBar />
-            <JobsPage/>
+            <JobsPage />
           </Protected>
         }
       />
@@ -74,7 +73,7 @@ function App() {
         element={
           <Protected>
             <NavBar />
-            <CreditPortfolioPage/>
+            <CreditPortfolioPage />
           </Protected>
         }
       />
@@ -117,7 +116,7 @@ function App() {
         element={
           <Protected>
             <NavBar />
-            <div>Tokens Page</div>
+            <CreditPortfolioPage />
           </Protected>
         }
       />
