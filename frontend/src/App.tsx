@@ -78,6 +78,7 @@ function App() {
         path="/verifier"
         element={
           <Protected>
+            <NavBar />
             <VerifierDashboard />
           </Protected>
         }

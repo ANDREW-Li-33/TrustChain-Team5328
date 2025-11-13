@@ -92,6 +92,13 @@ const AdminLinks = [
   },
 ];
 
+const VerifierLinks = [
+  {
+    name: "Pending Requests",
+    path: "/verifier",
+  },
+];
+
 const NavLink = (props: Props) => {
   const { children, path } = props;
   const location = useLocation();
@@ -123,6 +130,7 @@ export default function NavBar() {
   const { user } = useContext<any>(Context);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isBuyer, setIsBuyer] = useState(false);
+  const [isVerifier, setIsVerifier] = useState(false);
   const [userInfo, setUserInfo] = useState<UserRow | null>(null);
 
   const API =
@@ -155,6 +163,7 @@ export default function NavBar() {
           const userRole = me.role?.toLowerCase();
           setIsAdmin(userRole === "slb admin" || userRole === "slb_admin");
           setIsBuyer(userRole === "buyer");
+          setIsVerifier(userRole === "verifier");
         }
       } catch (err) {
         console.error("Error fetching user role:", err);
@@ -176,7 +185,7 @@ export default function NavBar() {
   };
 
   // Determine which links to show based on role
-  const links = isAdmin ? AdminLinks : isBuyer ? BuyerLinks : OperatorLinks;
+  const links = isAdmin ? AdminLinks : isBuyer ? BuyerLinks : isVerifier ? VerifierLinks : OperatorLinks;
 
   return (
     <>
@@ -192,7 +201,7 @@ export default function NavBar() {
             />
             <Text
               as={Link}
-              to={isAdmin ? "/jobs" : isBuyer ? "/buyerportfolio" : "/operator"}
+              to={isAdmin ? "/jobs" : isBuyer ? "/buyerportfolio" : isVerifier ? '/verfier' : "/operator"}
               fontSize="xl"
               fontWeight="bold"
               color={useColorModeValue("blue.600", "blue.300")}
@@ -208,6 +217,16 @@ export default function NavBar() {
             {isBuyer && (
               <Badge colorScheme="green" fontSize="sm">
                 Buyer
+              </Badge>
+            )}
+            {isVerifier && (
+              <Badge colorScheme="orange" fontSize="sm">
+                Verifier
+              </Badge>
+            )}
+            {!isAdmin && !isBuyer && !isVerifier && (
+              <Badge colorScheme="blue" fontSize="sm">
+                Operator
               </Badge>
             )}
           </HStack>
