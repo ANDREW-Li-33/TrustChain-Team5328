@@ -44,6 +44,18 @@ export async function getListingsByTokenID(id: number) {
   return data || [];
 }
 
+export async function removeAllTokensFromListing(listingID: number) {
+  const { error } = await supabase
+    .from('listingOfTokens')
+    .delete()
+    .eq('listingID', listingID);
+  if (error) {
+    console.error('Error deleting tokens from listing:', error);
+    return false;
+  }
+  return true;
+}
+
 export async function getTokensByListingID(id: number) {
   const { data, error } = await supabase.from('listingOfTokens').select('*').eq('listingID', id);
   if (error) {

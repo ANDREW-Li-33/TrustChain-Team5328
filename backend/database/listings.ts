@@ -1,7 +1,8 @@
 import { supabase } from '../supabaseClient.js';
-import { updateOwnerOfToken } from './tokens';
-import { getTokensByListingID } from './listingoftokens'
+import { updateOwnerOfToken, updateTokenStatus } from './tokens';
+import { getTokensByListingID, removeAllTokensFromListing } from './listingoftokens'
 import { recordTokenOnChain } from '../blockchain/blockchain';
+
 
 export async function addListing(listing: {
   tokenIDs: number[]; 
@@ -387,6 +388,21 @@ export async function removeListing(listingID: number) {
     .delete()
     .eq('listingID', listingID)
     .eq('Status', 'Active');
+
+    removeAllTokensFromListing(listingID);
+
+    const tokenIDs = await getTokensByListingID(listingID);
+
+    const { error: tokenUpdateError } = await supabase
+      .from('Tokens')
+      .update({ status: 'Active' })
+      .in('tokenID', tokenIDs?.map(t => t.tokenID) || []);
+
+    if (tokenUpdateError) {
+      console.error('Error updating token statuses during removal:', tokenUpdateError);
+    }
+    
+
 
   if (error) {
     console.error('Error removing listing:', error);
