@@ -22,7 +22,7 @@ import {
       },
       { 
         title: 'Listings Page', 
-        link: '/admin/listings', 
+        link: '/marketplace', 
         description: 'View and manage marketplace listings' 
       },
     ];
