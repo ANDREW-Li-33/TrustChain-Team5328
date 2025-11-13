@@ -105,6 +105,12 @@ export default function MarketplacePage() {
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
   const [detailListing, setDetailListing] = useState<Listing | null>(null);
 
+  // --- NEW: Modal state for removing listing ---
+  const { isOpen: isRemoveOpen, onOpen: onRemoveOpen, onClose: onRemoveClose } = useDisclosure();
+  const [listingToRemove, setListingToRemove] = useState<Listing | null>(null);
+  const [removeConfirmText, setRemoveConfirmText] = useState("");
+  const [isRemoving, setIsRemoving] = useState(false);
+
   // Filter states
   const [q, setQ] = useState("");
   const [recencyFilter, setRecencyFilter] = useState("all");
@@ -628,6 +634,93 @@ export default function MarketplacePage() {
     }
   };
 
+  // --- NEW: Handle remove click ---
+  const handleRemoveClick = (listing: Listing) => {
+    setListingToRemove(listing);
+    setRemoveConfirmText("");
+    onRemoveOpen();
+  };
+
+  // --- NEW: Handle confirm remove ---
+  const handleConfirmRemove = async () => {
+    if (!listingToRemove) return;
+    if (removeConfirmText !== "CONFIRM") {
+      toast({
+        title: "Confirmation Required",
+        description: "Please type CONFIRM to proceed.",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsRemoving(true);
+    try {
+      // We set the status to 'Inactive' to remove it from the active marketplace
+      const response = await fetch(`${API}/listings/${listingToRemove.listingID}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          newStatus: "Inactive",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to remove listing");
+      }
+
+      // Update all tokens in this listing back to "Minted" status
+      if (listingToRemove.tokens && listingToRemove.tokens.length > 0) {
+        const tokenUpdatePromises = listingToRemove.tokens.map(async (tokenID) => {
+          try {
+            const tokenResponse = await fetch(`${API}/tokens/${tokenID}/status`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ newStatus: "Minted" }),
+            });
+            
+            if (!tokenResponse.ok) {
+              console.error(`Failed to update token ${tokenID} status`);
+            }
+          } catch (error) {
+            console.error(`Error updating token ${tokenID}:`, error);
+          }
+        });
+
+        // Wait for all token updates to complete
+        await Promise.all(tokenUpdatePromises);
+      }
+
+      toast({
+        title: "Listing Removed",
+        description: "The listing has been removed from the marketplace and tokens have been returned to your portfolio.",
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      });
+
+      onRemoveClose();
+      setListingToRemove(null);
+      // Refresh listings
+      await Promise.all([fetchListings(), fetchAllListingsForDropdown()]);
+
+    } catch (error: any) {
+      console.error("Error removing listing:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove listing",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box p={6}>
@@ -1148,15 +1241,27 @@ export default function MarketplacePage() {
                   </>
                 )}
 
-                {/* Show message if user owns the listing */}
+                {/* Show message if user owns the listing - MODIFIED to add Remove button */}
                 {currentUser && currentUser.userID === listing.sellerID && !isAdmin && (
                   <>
                     <Divider />
-                    <Box width="100%" textAlign="center">
-                      <Badge colorScheme="gray" px={4} py={2}>
+                    <HStack width="100%" spacing={2} mt={2}>
+                      <Badge colorScheme="gray" px={4} py={2} flex={1} textAlign="center">
                         Your Listing
                       </Badge>
-                    </Box>
+                      {listing.Status === 'Active' && (
+                        <Button
+                          colorScheme="red"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveClick(listing);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </HStack>
                   </>
                 )}
               </VStack>
@@ -1239,6 +1344,73 @@ export default function MarketplacePage() {
               loadingText="Processing..."
             >
               Confirm Purchase
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* NEW: Remove Listing Modal */}
+      <Modal isOpen={isRemoveOpen} onClose={onRemoveClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Remove Listing</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {listingToRemove && (
+              <VStack align="start" spacing={4}>
+                <Alert status="warning" borderRadius="md">
+                  <AlertIcon />
+                  <Box>
+                    <Text fontWeight="bold">Warning</Text>
+                    <Text fontSize="sm">
+                      Removing this listing will take it off the marketplace. 
+                    </Text>
+                  </Box>
+                </Alert>
+
+                <Box width="100%" p={4} bg="gray.50" borderRadius="md">
+                  <VStack align="start" spacing={2}>
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Listing ID:</Text>
+                      <Text>#{listingToRemove.listingID}</Text>
+                    </HStack>
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Tokens:</Text>
+                      <Text>{listingToRemove.tokens?.length || 0}</Text>
+                    </HStack>
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Price:</Text>
+                      <Text>${listingToRemove.Price?.toFixed(2)}</Text>
+                    </HStack>
+                  </VStack>
+                </Box>
+
+                <FormControl isRequired>
+                  <FormLabel>Confirmation</FormLabel>
+                  <Input
+                    placeholder='Type "CONFIRM" to remove listing'
+                    value={removeConfirmText}
+                    onChange={(e) => setRemoveConfirmText(e.target.value)}
+                    borderColor={removeConfirmText === "CONFIRM" ? "red.500" : "gray.200"}
+                    _focus={{ borderColor: removeConfirmText === "CONFIRM" ? "red.500" : "blue.500" }}
+                  />
+                </FormControl>
+              </VStack>
+            )}
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onRemoveClose} isDisabled={isRemoving}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="red"
+              onClick={handleConfirmRemove}
+              isLoading={isRemoving}
+              isDisabled={removeConfirmText !== "CONFIRM"}
+              loadingText="Removing..."
+            >
+              Remove Listing
             </Button>
           </ModalFooter>
         </ModalContent>
