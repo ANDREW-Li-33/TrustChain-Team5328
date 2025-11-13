@@ -60,7 +60,7 @@ const OperatorLinks = [
 const BuyerLinks = [
   {
     name: "Portfolio",
-    path: "/buyerportfolio",
+    path: "/tokens",
   },
   {
     name: "Marketplace",
@@ -201,7 +201,7 @@ export default function NavBar() {
             />
             <Text
               as={Link}
-              to={isAdmin ? "/jobs" : isBuyer ? "/buyerportfolio" : isVerifier ? '/verfier' : "/operator"}
+              to={isAdmin ? "/jobs" : isBuyer ? "/tokens" : isVerifier ? '/verfier' : "/operator"}
               fontSize="xl"
               fontWeight="bold"
               color={useColorModeValue("blue.600", "blue.300")}

@@ -13,7 +13,6 @@ import NavBar from "./components/NavBar";
 import JobsPage from "./pages/Jobs";
 import CreditPortfolioPage from "./pages/CreditPortfolio";
 import MarketplacePage from "./pages/Marketplace";
-import BuyerPortfolioPage from "./pages/BuyerPortfolio";
 
 function App() {
   return (
@@ -119,15 +118,6 @@ function App() {
           <Protected>
             <NavBar />
             <CreditPortfolioPage />
-          </Protected>
-        }
-      />
-      <Route
-        path="/buyerportfolio"
-        element={
-          <Protected>
-            <NavBar />
-            <BuyerPortfolioPage />
           </Protected>
         }
       />
