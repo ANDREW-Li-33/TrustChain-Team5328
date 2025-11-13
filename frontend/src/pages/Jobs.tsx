@@ -333,13 +333,15 @@ export default function JobsPage() {
 
   return (
     <Box p={6}>
+      
       <HStack justify="space-between" mb={4}>
-        <Heading size="lg">Jobs</Heading>
-        {isAdmin && (
-          <Badge colorScheme="purple" fontSize="md" px={3} py={1}>
-            Admin View
-          </Badge>
-        )}
+        <HStack justify="space-between" mb={4}>
+          <Heading size="lg">
+            Jobs {isAdmin && (
+              <Badge colorScheme="purple" fontSize="md" ml={2}>Admin View</Badge>
+            )}
+          </Heading>
+        </HStack>
         {!isAdmin && (
           <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={onOpen}>
             Create New Job

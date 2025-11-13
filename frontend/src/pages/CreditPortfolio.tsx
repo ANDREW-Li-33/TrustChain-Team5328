@@ -777,7 +777,7 @@ export default function CreditPortfolioPage() {
                 <Heading size="lg">Job #{selectedJob.jobID}</Heading>
                 <Text fontSize="md" color="gray.600">Job Title: {selectedJob.jobTitle}</Text>
                 {isAdmin && (
-                  <Badge colorScheme="red">Admin View</Badge>
+                  <Badge colorScheme="purple">Admin View</Badge>
                 )}
               </VStack>
             )}

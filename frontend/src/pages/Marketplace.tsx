@@ -631,9 +631,6 @@ export default function MarketplacePage() {
   if (loading) {
     return (
       <Box p={6}>
-        <Heading size="lg" mb={4}>
-          Marketplace
-        </Heading>
         <Spinner size="xl" />
         <Text mt={4}>Loading listings...</Text>
       </Box>
@@ -657,34 +654,17 @@ export default function MarketplacePage() {
   return (
     <Box p={6}>
       <HStack justify="space-between" mb={4}>
-        <Heading size="lg">Marketplace</Heading>
-        {isAdmin && (
-          <Badge colorScheme="purple" fontSize="md" px={3} py={1}>
-            Admin View
-          </Badge>
-        )}
+      <HStack justify="space-between" mb={4}>
+        <Heading size="lg">
+          Marketplace {isAdmin && (
+            <Badge colorScheme="purple" fontSize="md" ml={2}>Admin View</Badge>
+          )}
+        </Heading>
+      </HStack>
       </HStack>
 
       {/* Search and filter section */}
       <VStack align="stretch" spacing={4} mb={6}>
-        {/* Basic filters row */}
-        <Wrap spacing={3} align="center">
-          <WrapItem>
-            <Input
-              placeholder="Search by Listing ID, Seller, Token ID, Price..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              minW="300px"
-              maxW="400px"
-            />
-          </WrapItem>
-
-          <WrapItem>
-            <Button onClick={handleResetFilters} variant="outline">
-              Reset All Filters
-            </Button>
-          </WrapItem>
-        </Wrap>
 
         {/* Operator and Buyer filters - Price and Quality */}
         {(isOperator || isBuyer) && !isAdmin && (
