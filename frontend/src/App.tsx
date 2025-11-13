@@ -2,7 +2,6 @@ import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/Login";
 import OperatorDashboard from "./pages/OperatorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
-import AdminListings from "./pages/AdminListings";
 import VerifierDashboard from "./pages/VerifierDashboard";
 import VerifierEvidenceReview from "./pages/VerifierEvidenceReview";
 import RegistrationPage from "./pages/Registration";
@@ -52,15 +51,6 @@ function App() {
           <Protected>
             <NavBar />
             <AdminDashboard />
-          </Protected>
-        }
-      />
-      <Route
-        path="/admin/listings"
-        element={
-          <Protected>
-            <NavBar />
-            <AdminListings />
           </Protected>
         }
       />

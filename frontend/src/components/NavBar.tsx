@@ -72,7 +72,7 @@ const BuyerLinks = [
 const AdminLinks = [
   {
     name: "Dashboard",
-    path: "/jobs",
+    path: "/admin",
   },
   {
     name: "Pending Requests",
