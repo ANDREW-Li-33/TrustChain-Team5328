@@ -2,6 +2,7 @@ import express from 'express';
 import { addListing, getActiveListingsWithDetails, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
     completeListing, changeListingStatus, getListingsByDateRange, getPreviousListingsBySeller
  } from '../database/listings';
+import { recordTokenOnChain } from '../blockchain/blockchain';
 
 const router = express.Router();
 

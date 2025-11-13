@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient.js';
 import { updateOwnerOfToken } from './tokens';
 import { getTokensByListingID } from './listingoftokens'
+import { recordTokenOnChain } from '../blockchain/blockchain';
 
 export async function addListing(listing: {
   tokenIDs: number[]; 
@@ -107,25 +108,17 @@ export async function getActiveListingsWithDetails(filters?: {
   companyName?: string;
 }) {
   try {
-    // Helper function to normalize date field from listing
     const normalizeDate = (listing: any): string => {
       return listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString();
     };
-
-    // Start with base query - join Listings with Users (seller info)
-    // Try to join with Users table - if foreign key name is different, we'll handle it
     let query = supabase
       .from('Listings')
       .select('*')
       .eq('Status', 'Active');
-
-    // Apply filters
     if (filters?.sellerID) {
       query = query.eq('sellerID', filters.sellerID);
     }
 
-    // Date filters - try CreatedAt first (matches addListing function)
-    // If column doesn't exist, we'll filter client-side after fetching
     if (filters?.dateAfter) {
       query = query.gte('CreatedAt', filters.dateAfter);
     }
@@ -136,11 +129,9 @@ export async function getActiveListingsWithDetails(filters?: {
 
     let { data: listings, error: listingsError } = await query;
     
-    // If error is about column not found, retry without date filters and filter client-side
     if (listingsError && (listingsError.message?.includes('CreatedAt') || listingsError.message?.includes('column') || listingsError.message?.includes('schema cache'))) {
       console.warn('Date filter column (CreatedAt) not found, fetching all and filtering client-side');
       
-      // Retry without date filters
       let retryQuery = supabase
         .from('Listings')
         .select('*')
@@ -158,8 +149,7 @@ export async function getActiveListingsWithDetails(filters?: {
         console.error('Error fetching listings:', retryResult.error);
         return null;
       }
-      
-      // Filter by date client-side if needed
+
       if (filters?.dateAfter || filters?.dateBefore) {
         listings = (listings || []).filter((listing: any) => {
           const listingDate = normalizeDate(listing);
@@ -340,13 +330,21 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
     }
 
     const tokenIDs = tokenLinks.map(t => t.tokenID);
+    console.log('I got here as well');
 
     // Step 2: Update each token’s owner and status
     const updatedTokens = [];
+    let i = 0;
     for (const tokenID of tokenIDs) {
+      const tokenHash = `${oldOwner}_SoldTo_${newOwner}_${tokenID}`;
+      i += 1;
+      const blockchainTokenHash = await recordTokenOnChain(tokenHash);
+      console.log(`Blockchain token hash for token ${tokenID}: ${blockchainTokenHash}`);
+
       const updatedToken = await updateOwnerOfToken(tokenID, newOwner);
       if (updatedToken) {
         updatedTokens.push(updatedToken);
+        console.log('I am here');
       } else {
         console.warn(`Failed to update token ${tokenID}`);
       }

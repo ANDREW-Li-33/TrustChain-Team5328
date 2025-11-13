@@ -224,6 +224,8 @@ router.put('/:id/status', async (req, res) => {
         }
         if (fractionalToken > 0) {
           const tokenHash = `${request.jobID}_${request.operatorID}_${numTokens}`;
+          const blockchainTokenHash = await recordTokenOnChain(tokenHash);
+          console.log("Blockchain token hash received in pendingrequests.ts: ", blockchainTokenHash);
           addToken({
             ownerID: job.operatorID,
             jobID: request.jobID,
@@ -232,6 +234,7 @@ router.put('/:id/status', async (req, res) => {
             mintedAt: new Date().toISOString(),
             retiredAt: null,
             metadata: tokenMetadata as unknown as JSON,
+            blockchainHash: blockchainTokenHash,
             creditProportion: fractionalToken,
             tokenHash: tokenHash,
           })
