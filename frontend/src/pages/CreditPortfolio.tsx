@@ -116,6 +116,7 @@ export default function CreditPortfolioPage() {
   const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedOperatorFilter, setSelectedOperatorFilter] = useState<string>("all");
+  const [confirmText, setConfirmText] = useState("");
 
   // Listing modal state
   const { 
@@ -458,6 +459,7 @@ export default function CreditPortfolioPage() {
     
     setSelectedGroupedToken(groupedToken);
     setListingPrice("");
+    setConfirmText("");
     setAvailableTokens([]);
     onListingOpen();
     
@@ -527,6 +529,17 @@ export default function CreditPortfolioPage() {
       return;
     }
 
+    if (confirmText !== "CONFIRM") {
+      toast({
+        title: "Confirmation Required",
+        description: "Please type CONFIRM in the text box to proceed.",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
     setIsCreatingListing(true);
 
     try {
@@ -564,6 +577,7 @@ export default function CreditPortfolioPage() {
       // Reset and close
       setSelectedGroupedToken(null);
       setListingPrice("");
+      setConfirmText("");
       setAvailableTokens([]);
       onListingClose();
       
@@ -1047,6 +1061,16 @@ export default function CreditPortfolioPage() {
                               Price per token: ${(parseFloat(listingPrice) / availableTokens.length).toFixed(2)}
                             </Text>
                           )}
+                        </FormControl>
+                        <FormControl isRequired isDisabled={availableTokens.length === 0}>
+                          <FormLabel>Confirmation</FormLabel>
+                          <Input
+                            placeholder='Type "CONFIRM" to put listing on marketplace'
+                            value={confirmText}
+                            onChange={(e) => setConfirmText(e.target.value)}
+                            borderColor={confirmText === "CONFIRM" ? "green.500" : "gray.200"}
+                            _focus={{ borderColor: confirmText === "CONFIRM" ? "green.500" : "blue.500" }}
+                          />
                         </FormControl>
                       </>
                     )}
