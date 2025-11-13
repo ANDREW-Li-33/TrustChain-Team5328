@@ -1,6 +1,6 @@
 import express from 'express';
 import { addListing, getActiveListingsWithDetails, getListingByID, getListingsByOwnerID, getListingsInPriceRange, getListingsInQualityRange,
-    completeListing, changeListingStatus, getListingsByDateRange, getPreviousListingsBySeller
+    completeListing, changeListingStatus, getListingsByDateRange, getPreviousListingsBySeller, removeListing
  } from '../database/listings';
 import { recordTokenOnChain } from '../blockchain/blockchain';
 
@@ -169,6 +169,13 @@ router.get('/:id', async (req, res) => {
   const listing = await getListingByID(id);
   if (!listing) return res.status(404).json({ error: 'Listing not found' });
   res.json(listing);
+});
+
+router.delete('/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+  const success = await removeListing(id);
+  if (!success) return res.status(500).json({ error: 'Failed to delete listing' });
+  res.json({ message: 'Listing deleted successfully' });
 });
 
 

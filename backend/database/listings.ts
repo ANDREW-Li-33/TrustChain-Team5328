@@ -381,6 +381,20 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
   }
 }
 
+export async function removeListing(listingID: number) {
+  const { data, error } = await supabase
+    .from('Listings')
+    .delete()
+    .eq('listingID', listingID)
+    .eq('Status', 'Active');
+
+  if (error) {
+    console.error('Error removing listing:', error);
+    return null;
+  }
+
+  return data;
+}
 
 export async function getListingsByDateRange(startDate: string | null, endDate: string | null) {
   // Use getActiveListingsWithDetails with date filters to get quality data
