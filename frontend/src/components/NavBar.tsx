@@ -54,6 +54,10 @@ const OperatorLinks = [
     name: "Marketplace",
     path: "/marketplace",
   },
+  {
+    name: "User History",
+    path: "/userhistory",
+  },
 ];
 
 // Buyer-specific links
@@ -65,6 +69,10 @@ const BuyerLinks = [
   {
     name: "Marketplace",
     path: "/marketplace",
+  },
+  {
+    name: "User History",
+    path: "/userhistory",
   },
 ];
 
