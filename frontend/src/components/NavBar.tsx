@@ -90,6 +90,10 @@ const AdminLinks = [
     name: "Marketplace",
     path: "/marketplace",
   },
+  {
+    name: "Admin Actions",
+    path: "/adminaction",
+  },
 ];
 
 const VerifierLinks = [
@@ -185,11 +189,22 @@ export default function NavBar() {
   };
 
   // Determine which links to show based on role
-  const links = isAdmin ? AdminLinks : isBuyer ? BuyerLinks : isVerifier ? VerifierLinks : OperatorLinks;
+  const links = isAdmin
+    ? AdminLinks
+    : isBuyer
+    ? BuyerLinks
+    : isVerifier
+    ? VerifierLinks
+    : OperatorLinks;
 
   return (
     <>
-      <Box bg={useColorModeValue("gray.100", "gray.900")} px={4} borderBottom="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+      <Box
+        bg={useColorModeValue("gray.100", "gray.900")}
+        px={4}
+        borderBottom="1px"
+        borderColor={useColorModeValue("gray.200", "gray.700")}
+      >
         <Flex h={16} alignItems={"center"} justifyContent={"space-between"}>
           <HStack spacing={4}>
             <IconButton
@@ -201,7 +216,15 @@ export default function NavBar() {
             />
             <Text
               as={Link}
-              to={isAdmin ? "/jobs" : isBuyer ? "/tokens" : isVerifier ? '/verfier' : "/operator"}
+              to={
+                isAdmin
+                  ? "/jobs"
+                  : isBuyer
+                  ? "/tokens"
+                  : isVerifier
+                  ? "/verfier"
+                  : "/operator"
+              }
               fontSize="xl"
               fontWeight="bold"
               color={useColorModeValue("blue.600", "blue.300")}
@@ -254,7 +277,10 @@ export default function NavBar() {
                 cursor={"pointer"}
                 minW={0}
               >
-                <Avatar size={"sm"} name={userInfo?.email || user?.email || "User"} />
+                <Avatar
+                  size={"sm"}
+                  name={userInfo?.email || user?.email || "User"}
+                />
               </MenuButton>
               <MenuList>
                 {userInfo && (
