@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient.js';
-import { updateOwnerOfToken, updateTokenStatus } from './tokens';
+import { updateOwnerOfToken, updateTokenStatus, updateRecentTransactionHash } from './tokens';
 import { getTokensByListingID, removeAllTokensFromListing } from './listingoftokens'
 import { recordTokenOnChain } from '../blockchain/blockchain';
 
@@ -335,15 +335,15 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
 
     // Step 2: Update each token’s owner and status
     const updatedTokens = [];
-    let i = 0;
-    for (const tokenID of tokenIDs) {
-      const tokenHash = `${oldOwner}_SoldTo_${newOwner}_${tokenID}`;
-      i += 1;
-      const blockchainTokenHash = await recordTokenOnChain(tokenHash);
-      console.log(`Blockchain token hash for token ${tokenID}: ${blockchainTokenHash}`);
+    const mintingHash = `Listing_${listingID}_SoldToUser_${newOwner}_FromUser_${oldOwner}_TheTokensSoldAre_${tokenIDs.join('_')}`;
+    const transactionHash = await recordTokenOnChain(mintingHash);
+    console.log(`Blockchain transaction hash for listing ${listingID}: ${transactionHash}`);
 
+
+    for (const tokenID of tokenIDs) {
       const updatedToken = await updateOwnerOfToken(tokenID, newOwner);
-      if (updatedToken) {
+      const updatedHash = await updateRecentTransactionHash(tokenID, transactionHash || 'N/A');
+      if (updatedToken && updatedHash) {
         updatedTokens.push(updatedToken);
         console.log('I am here');
       } else {
@@ -358,7 +358,8 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
         Status: 'Complete',
         buyerID: newOwner,
         completedAt: new Date().toISOString(),
-        Price: priceSold
+        Price: priceSold,
+        transactionHash: transactionHash || 'N/A',
       })
       .eq('listingID', listingID)
       .select();

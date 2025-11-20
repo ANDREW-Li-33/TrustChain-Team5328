@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
     try {
-        const { ownerID, jobID, quality, status, mintedAt, retiredAt, metadata, blockchainHash, creditProportion, tokenHash } = req.body;
+        const { ownerID, jobID, quality, status, mintedAt, retiredAt, metadata, mintingHash, creditProportion, tokenHash } = req.body;
 
         // Basic validation
         if (!ownerID || !jobID || !quality || !metadata) {
@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
             mintedAt,
             retiredAt,
             metadata,
-            blockchainHash,
+            mintingHash,
             creditProportion,
             tokenHash
         });

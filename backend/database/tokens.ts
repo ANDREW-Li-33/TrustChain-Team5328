@@ -7,11 +7,11 @@ export async function addToken(currToken: {
   ownerID: number;
   jobID: number;
   quality: number;
-  status: 'Minted' | 'Retired' | 'Ready for Minting';
+  status: 'Minted' | 'Retired' | 'On The Marketplace';
   mintedAt?: string;
   retiredAt?: string | null;
   metadata: JSON;
-  blockchainHash?: string | null;
+  mintingHash?: string | null;
   creditProportion: number;
   tokenHash: string;
 }) {
@@ -27,7 +27,7 @@ export async function addToken(currToken: {
         mintedAt: currToken.mintedAt || new Date().toISOString(),
         retiredAt: currToken.retiredAt || null, // defaults to null, will change when retired
         metadata: currToken.metadata,
-        blockchainHash: currToken.blockchainHash,
+        mintingHash: currToken.mintingHash,
         creditProportion: currToken.creditProportion || 1,
         tokenHash: currToken.tokenHash,
       },
@@ -70,6 +70,15 @@ export async function getTokensByOwnerID(operatorID: number) {
         return null;
     }
     return data;
+}
+
+export async function updateRecentTransactionHash(tokenID: number, newHash: string) {
+  const { data, error } = await supabase.from('Tokens').update({ recentTransactionHash: newHash }).eq('tokenID', tokenID).select();
+  if (error) {
+        console.error('Error updating recent transaction hash:', error);
+        return null;
+    }
+  return data;
 }
 
 export async function getTokensGroupedByOwner(ownerID: number) {

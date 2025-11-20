@@ -217,7 +217,7 @@ router.put('/:id/status', async (req, res) => {
             mintedAt: new Date().toISOString(),
             retiredAt: null,
             metadata: tokenMetadata as unknown as JSON,
-            blockchainHash: blockchainTokenHash,
+            mintingHash: blockchainTokenHash,
             creditProportion: 1,
             tokenHash: tokenHash,
           })
@@ -234,7 +234,7 @@ router.put('/:id/status', async (req, res) => {
             mintedAt: new Date().toISOString(),
             retiredAt: null,
             metadata: tokenMetadata as unknown as JSON,
-            blockchainHash: blockchainTokenHash,
+            mintingHash: blockchainTokenHash,
             creditProportion: fractionalToken,
             tokenHash: tokenHash,
           })
