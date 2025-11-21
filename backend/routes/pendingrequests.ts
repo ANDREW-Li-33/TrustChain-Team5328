@@ -4,6 +4,7 @@ import { updateJobStatus, getJobByID } from '../database/jobs';
 import { addToken } from '../database/tokens';
 import { getTelemetryDataByJobID } from '../database/telemetrydata';
 import { recordTokenOnChain } from '../blockchain/blockchain';
+import { mintTokenEvent } from '../database/tokenEvents';
 
 const router = express.Router();
 
@@ -209,7 +210,7 @@ router.put('/:id/status', async (req, res) => {
           const blockchainTokenHash = await recordTokenOnChain(tokenHash);
           console.log("Blockchain token hash received in pendingrequests.ts: ", blockchainTokenHash);
           
-          addToken({
+          const insertedToken = await addToken({
             ownerID: job.operatorID,
             jobID: request.jobID,
             quality: quality,
@@ -221,6 +222,8 @@ router.put('/:id/status', async (req, res) => {
             creditProportion: 1,
             tokenHash: tokenHash,
           })
+          const tokenID = insertedToken?.[0]?.tokenID;
+          await mintTokenEvent(job.operatorID, tokenID, blockchainTokenHash || '');
         }
         if (fractionalToken > 0) {
           const tokenHash = `${request.jobID}_${request.operatorID}_${numTokens}`;

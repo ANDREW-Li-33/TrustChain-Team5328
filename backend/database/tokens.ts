@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient.js';
-import { recordTokenOnChain } from '../blockchain/blockchain.js';
+import { recordTokenOnChain } from '../blockchain/blockchain';
+import { retireTokenEvent } from './tokenEvents';
 
 export type TokenStatus = 'Minted' | 'Retired' | 'On The Marketplace'
 
@@ -167,7 +168,25 @@ export async function updateOwnerOfToken(tokenID: number, newOwnerID: number) {
 
 }
 
+export async function retireToken(tokenID: number, ownerID: number) {
+    const tokenHash = `YourToken_${tokenID}_RetiredByUser_${ownerID}_OnDate_${new Date().toISOString()}`;
+    const blockchainTokenHash = await recordTokenOnChain(tokenHash);
+    console.log(`Blockchain token hash for retired token ${tokenID}: ${blockchainTokenHash}`);
+    const { data, error } = await supabase.from('Tokens').update({ status: 'Retired', retiredAt: new Date().toISOString(),
+       retirementHash: blockchainTokenHash || null }).eq('tokenID', tokenID).select();
+    if (error) {
+        console.error('Error retiring token:', error);
+        return null;
+    }
 
+
+    await retireTokenEvent(ownerID, tokenID, blockchainTokenHash || '');
+    return data;
+}
+
+export async function getTokensFullHistory(tokenID: number) {
+
+}
 
 async function testConnection() {
   const { data, error } = await supabase.from('Tokens').select('*');

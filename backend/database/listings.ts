@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient.js';
 import { updateOwnerOfToken, updateTokenStatus, updateRecentTransactionHash } from './tokens';
 import { getTokensByListingID, removeAllTokensFromListing } from './listingoftokens'
 import { recordTokenOnChain } from '../blockchain/blockchain';
+import { transferTokenEvent } from './tokenEvents';
 
 
 export async function addListing(listing: {
@@ -363,6 +364,11 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
       })
       .eq('listingID', listingID)
       .select();
+
+    //Step 4: Record transfer events for each token
+    for (const tokenID of tokenIDs) {
+      await transferTokenEvent(oldOwner, newOwner, tokenID, listingID, transactionHash || '');
+    }
 
     if (updateError) {
       console.error('Error updating listing status to Complete:', updateError);
