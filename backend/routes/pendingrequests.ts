@@ -1,10 +1,9 @@
 import express from 'express';
-import { addRequest, getRequests, getRequestByJobID, getOneRequest, getRequestsByOperatorID, deleteRequest, updateRequestStatus } from '../database/pendingrequests';
+import { addRequest, getRequests, addSavedQuality, getRequestByJobID, getOneRequest, getRequestsByOperatorID, deleteRequest, updateRequestStatus } from '../database/pendingrequests';
 import { updateJobStatus, getJobByID } from '../database/jobs';
-import { addToken } from '../database/tokens';
-import { getTelemetryDataByJobID } from '../database/telemetrydata';
-import { recordTokenOnChain } from '../blockchain/blockchain';
-import { mintTokenEvent } from '../database/tokenEvents';
+import { processMintingRequest, queueRequestForMinting } from '../database/helpers';
+import { getMintingStatus } from '../database/systemStatus';
+import { setMintingActive } from '../database/systemStatus';
 
 const router = express.Router();
 
@@ -97,171 +96,51 @@ function calculateCO2Savings(telemetryData: any[]): number {
     return Math.round(totalSavings * 1000) / 1000; // Round to 3 decimals
 }
 
-// Helper function to calculate quality score (0-100)
-function calculateQualityScore(telemetryData: any[]): number {
-    // Quality based on data completeness and consistency
-    if (telemetryData.length === 0) return 50; // Default if no data
-    
-    let score = 100;
-    
-    // Deduct points for missing data
-    const completeRecords = telemetryData.filter(d => 
-        d.metadata?.measurements?.power_kw && 
-        d.metadata?.measurements?.runtime_sec
-    );
-    const completenessRatio = completeRecords.length / telemetryData.length;
-    score = score * completenessRatio;
-    
-    // Bonus for more data points
-    if (telemetryData.length >= 5) score = Math.min(100, score + 5);
-    if (telemetryData.length >= 10) score = Math.min(100, score + 5);
-    
-    return Math.round(score);
-}
-
 // Update to mint job when verification is complete AND create token
 router.put('/:id/status', async (req, res) => {
-    try {
-      const { status, verificationTimestamp, quality } = req.body;
+  try {
+    const { status, verificationTimestamp, quality } = req.body;
+    const requestID = Number(req.params.id);
 
-      if (!status) {
-        return res.status(400).json({ error: "Status is required" });
-      }
+    if (!status) return res.status(400).json({ error: "Status is required" });
 
-      // Get the request to find the associated jobID
-      const request = await getOneRequest(Number(req.params.id));
-      if (!request) {
-        return res.status(404).json({ error: "Request not found" });
-      }
+    const updatedRequests = await updateRequestStatus(requestID, status, verificationTimestamp);
+    if (!updatedRequests || updatedRequests.length === 0) return res.status(500).json({ error: "Failed to update request" });
+    const updatedRequest = Array.isArray(updatedRequests) ? updatedRequests[0] : updatedRequests;
 
-      const updatedRequest = await updateRequestStatus(
-        Number(req.params.id), 
-        status,
-        verificationTimestamp
-      );
-      
-      if (!updatedRequest) {
-        console.error(`Failed to update request ${req.params.id} with status ${status}`);
-        return res.status(500).json({ 
-          error: "Failed to update request status. Please check server logs for details."
+    if (status === 'Approved') {
+      const mintingActive = await getMintingStatus();
+
+      if (!mintingActive) {
+        await queueRequestForMinting(requestID, quality, verificationTimestamp);
+        return res.status(200).json({
+          message: "Minting is paused. Request queued for automatic processing.",
+          data: updatedRequest,
         });
       }
 
-      // If status is Complete, update the job status to Minted AND create token
-
-        if (status === 'Approved') {
-            console.log(`\n=== Processing verification approval for job ${request.jobID} ===`);
-            
-            // 1. Update job status to Ready for Minting
-            console.log(`Step 1: Setting job ${request.jobID} to 'Ready for Minting'...`);
-    const jobUpdate = await updateJobStatus(request.jobID, 'Ready for Minting');
-            if (!jobUpdate) {
-              console.error("Failed to update job status to Ready for Minting");
-    return res.status(500).json({ error: "Failed to update job" });
-            }
-            console.log(`Job ${request.jobID} successfully set to 'Ready for Minting'`);
-        // 2. Get job details to find the owner
-        console.log(`Step 2: Fetching job details...`);
-        const job = await getJobByID(request.jobID);
-        if (!job) {
-          console.error("Failed to fetch job details");
-          return res.status(500).json({ error: "Failed to fetch job details" });
-        }
-        console.log(`Job details retrieved - Owner: ${job.operatorID}, Tool: ${job.toolID}`);
-
-        // 3. Get telemetry data for metadata
-        console.log(`Step 3: Fetching telemetry data...`);
-        const telemetryData = await getTelemetryDataByJobID(request.jobID);
-        if (!telemetryData || telemetryData.length === 0) {
-          console.warn("No telemetry data found for this job");
-        } else {
-          console.log(`Retrieved ${telemetryData.length} telemetry records`);
-        }
-
-        // 4. Calculate CO2 savings and quality
-        console.log(`Step 4: Calculating CO2 savings and quality score...`);
-        const co2Saved = calculateCO2Savings(telemetryData || []);
-        console.log(`CO2 Saved: ${co2Saved} tCO2e, Quality Score: ${quality}/100`);
-
-        // 5. Create token metadata
-        const tokenMetadata = {
-          jobID: request.jobID,
-          jobTitle: job.jobTitle || 'Untitled Job',
-          toolID: job.toolID,
-          verificationDate: verificationTimestamp || new Date().toISOString(),
-          co2Saved: co2Saved,
-          telemetryRecords: telemetryData?.length || 0,
-          evidenceHash: `hash_${request.jobID}_${Date.now()}`, // In production, this would be a real hash
-        };
-
-        // 6. Create token record
-        console.log(`Step 5: Creating token records...`);
-        await updateJobStatus(request.jobID, 'Minted');
-        const numTokens = Math.floor(co2Saved); // Ensure integer tokens
-        const fractionalToken = co2Saved - numTokens;
-        console.log("co2Saved:", co2Saved, "typeof:", typeof co2Saved);
-        console.log("numTokens:", numTokens, "fractionalToken:", fractionalToken);
-        if (numTokens <= 0) {
-          console.warn("CO2 savings is 0 or invalid — skipping token creation");
-        }
-        for (let i = 0; i < numTokens; i++) {
-          const tokenHash = `${request.jobID}_${request.operatorID}_${i}`;
-
-          const blockchainTokenHash = await recordTokenOnChain(tokenHash);
-          console.log("Blockchain token hash received in pendingrequests.ts: ", blockchainTokenHash);
-          
-          const insertedToken = await addToken({
-            ownerID: job.operatorID,
-            jobID: request.jobID,
-            quality: quality,
-            status: 'Minted',
-            mintedAt: new Date().toISOString(),
-            retiredAt: null,
-            metadata: tokenMetadata as unknown as JSON,
-            mintingHash: blockchainTokenHash,
-            creditProportion: 1,
-            tokenHash: tokenHash,
-          })
-          const tokenID = insertedToken?.[0]?.tokenID;
-          await mintTokenEvent(job.operatorID, tokenID, blockchainTokenHash || '');
-        }
-        if (fractionalToken > 0) {
-          const tokenHash = `${request.jobID}_${request.operatorID}_${numTokens}`;
-          const blockchainTokenHash = await recordTokenOnChain(tokenHash);
-          console.log("Blockchain token hash received in pendingrequests.ts: ", blockchainTokenHash);
-          addToken({
-            ownerID: job.operatorID,
-            jobID: request.jobID,
-            quality: quality,
-            status: 'Minted',
-            mintedAt: new Date().toISOString(),
-            retiredAt: null,
-            metadata: tokenMetadata as unknown as JSON,
-            mintingHash: blockchainTokenHash,
-            creditProportion: fractionalToken,
-            tokenHash: tokenHash,
-          })
-        }
-
-      } else if (status === 'Denied') {
-        // 1. Update job status to Denied
-        console.log(`Step 1: Setting job ${request.jobID} to 'Denied'...`);
-        const jobUpdate = await updateJobStatus(request.jobID, 'Denied');
-        if (!jobUpdate) {
-          console.error("Failed to update job status to Denied");
-          return res.status(500).json({ error: "Failed to update job" });
-        }
-        console.log(`Job ${request.jobID} successfully set to 'Denied'`);
-      }
-      
-      res.status(200).json({ 
-        message: "Request status updated successfully", 
-        data: updatedRequest 
-      });
-    } catch (error) {
-      console.error("Error in PUT /pendingrequests/:id/status:", error);
-      res.status(500).json({ error: "Internal server error" });
+      await processMintingRequest(requestID, verificationTimestamp, quality);
     }
+
+    if (status === 'Denied') await updateJobStatus(updatedRequest.jobID, 'Denied');
+
+    res.status(200).json({ message: "Request updated successfully", data: updatedRequest });
+
+  } catch (error) {
+    console.error("Error in PUT /pendingrequests/:id/status:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
+
+router.post('/test/processQueue', async (req, res) => {
+  try {
+    await setMintingActive();
+    res.status(200).json({ message: "Minting activated for testing." });
+  } catch (error) {
+    console.error("Error in POST /pendingrequests/test/processQueue:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 export default router;

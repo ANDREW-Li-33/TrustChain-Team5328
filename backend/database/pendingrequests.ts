@@ -119,12 +119,41 @@ export async function deleteRequest(requestID: number) {
   return data;
 }
 
-async function testConnection() {
-  const { data, error } = await supabase.from("PendingRequests").select("*");
+export async function addSavedQuality(requestID: number, qualityValue : number) {
+  const { data, error } = await supabase
+    .from("PendingRequests")
+    .update({ savedQuality: qualityValue })
+    .eq("requestID", requestID)
+    .select();
   if (error) {
-    console.error("Supabase query error:", error);
-  } else {
-    console.log("Supabase PendingRequests Data:", data);
+    console.error("Error updating saved quality metrics:", error);
+    return null;
   }
+  return data;
 }
 
+export async function getSavedQuality(requestID: number) {
+  const { data, error } = await supabase
+    .from("PendingRequests")
+    .select("savedQuality")
+    .eq("requestID", requestID)
+    .single();
+
+  if (error) {
+    console.error("Error fetching saved quality:", error);
+    return null;
+  }
+  return data?.savedQuality ?? null;
+}
+
+export async function getPendingRequestsOnHold() {
+  const { data, error } = await supabase
+    .from("PendingRequests")
+    .select("*")
+    .eq("status", "On Hold");
+  if (error) {
+    console.error("Error fetching pending requests on hold:", error);
+    return null;
+  }
+  return data;
+}
