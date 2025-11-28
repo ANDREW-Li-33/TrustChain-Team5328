@@ -47,6 +47,15 @@ export async function getUserByID(id: number) {
   return data;
 }
 
+export async function getUserRole(id: number) {
+  const { data, error } = await supabase.from('Users').select('role').eq('userID', id).single();
+  if (error) {
+    console.error('Error fetching user role by ID:', error);
+    return null;
+  }
+  return data.role;
+}
+
 async function testConnection() {
   const { data, error } = await supabase.from('Users').select('*');
   if (error) {

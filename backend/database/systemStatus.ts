@@ -1,5 +1,6 @@
 import {supabase} from '../supabaseClient';
 import { processQueuedMintingRequests } from './helpers';
+import { addGovernanceLog } from './governancelogs';
 
 export async function getMintingStatus() {
     const {data, error} = await supabase.from('CurrentSystemState').select('mintingStatus').eq('id', 1).single();
@@ -20,6 +21,7 @@ export async function setMintingActive() {
         return null;
     }
     await processQueuedMintingRequests();
+    await addGovernanceLog('Minting Activated', new Date().toISOString());
 
     return data;
 }
@@ -30,7 +32,7 @@ export async function setMintingInactive() {
         console.error('Error updating minting status to Inactive:', error);
         return null;
     }
-    return data;
+    await addGovernanceLog('Minting Deactivated', new Date().toISOString());
 }
 
 export async function getTransferStatus() {
@@ -45,23 +47,47 @@ export async function getTransferStatus() {
     return false;
 }
 
-export async function setTransferStatus(isActive: boolean) {
-    const newStatus = isActive ? 'Active' : 'Inactive';
-    const {data, error} = await supabase.from('CurrentSystemState').update({transferStatus: newStatus}).eq('id', 1).select();
+export async function setTransferActive() {
+    const {data, error} = await supabase.from('CurrentSystemState').update({transferStatus: 'Active'}).eq('id', 1).select();
     if (error) {
-        console.error('Error updating transfer status:', error);
+        console.error('Error updating transfer status to Active:', error);
         return null;
     }
+    await addGovernanceLog('Transfer Activated', new Date().toISOString());
+
     return data;
 }
 
-export async function setRetireStatus(isActive: boolean) {
-    const newStatus = isActive ? 'Active' : 'Inactive';
-    const {data, error} = await supabase.from('CurrentSystemState').update({retireStatus: newStatus}).eq('id', 1).select();
+export async function setTransferInactive() {
+    const {data, error} = await supabase.from('CurrentSystemState').update({transferStatus: 'Inactive'}).eq('id', 1).select();
     if (error) {
-        console.error('Error updating retire status:', error);
+        console.error('Error updating transfer status to Inactive:', error);
         return null;
     }
+    await addGovernanceLog('Transfer Deactivated', new Date().toISOString());
+
+    return data;
+}
+
+export async function setRetireActive() {
+    const {data, error} = await supabase.from('CurrentSystemState').update({retireStatus: 'Active'}).eq('id', 1).select();
+    if (error) {
+        console.error('Error updating retire status to Active:', error);
+        return null;
+    }
+    await addGovernanceLog('Retire Activated', new Date().toISOString());
+
+    return data;
+}
+
+export async function setRetireInactive() {
+    const {data, error} = await supabase.from('CurrentSystemState').update({retireStatus: 'Inactive'}).eq('id', 1).select();
+    if (error) {
+        console.error('Error updating retire status to Inactive:', error);
+        return null;
+    }
+    await addGovernanceLog('Retire Deactivated', new Date().toISOString());
+
     return data;
 }
 
