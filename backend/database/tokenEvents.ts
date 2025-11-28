@@ -11,82 +11,62 @@ export async function getTokensFullHistory(tokenID: number) {
 }
 
 export async function getUserHistory(userID: number) {
-    const role = await getUserRole(userID);
-    const history: any = { userID, role };
+  const role = await getUserRole(userID);
+  const history: any = { userID, role };
 
-    // 1️⃣ Tokens minted (operators only)
-    if (role === "operator") {
-        const { data: minted, error: mintedErr } = await supabase
-            .from("tokenEvents")
-            .select("id")
-            .eq("eventType", "Minting")
-            .eq("firstOwner", userID);
-        if (mintedErr) console.error(mintedErr);
-        history.tokensMinted = minted ? minted.length : 0;
-    }
+  if (role === "Operator") {
+    const mintedIDs = await getTokenIDsFromEvents(userID, 'Minting', 'firstOwner');
+    history.tokensMinted = await sumCreditProportionForTokens(mintedIDs);
+  }
 
-    // 2️⃣ Tokens bought (newOwner = user)
-    const { data: bought, error: boughtErr } = await supabase
-        .from("tokenEvents")
-        .select("id")
-        .eq("eventType", "Transfer")
-        .eq("newOwner", userID);
-    if (boughtErr) console.error(boughtErr);
-    history.tokensBought = bought ? bought.length : 0;
+  const boughtIDs = await getTokenIDsFromEvents(userID, 'Transfer', 'newOwner');
+  history.tokensBought = await sumCreditProportionForTokens(boughtIDs);
 
-    // 3️⃣ Tokens sold (firstOwner = user)
-    const { data: sold, error: soldErr } = await supabase
-        .from("tokenEvents")
-        .select("id")
-        .eq("eventType", "Transfer")
-        .eq("firstOwner", userID);
-    if (soldErr) console.error(soldErr);
-    history.tokensSold = sold ? sold.length : 0;
+  const soldIDs = await getTokenIDsFromEvents(userID, 'Transfer', 'firstOwner');
+  history.tokensSold = await sumCreditProportionForTokens(soldIDs);
 
-    // 4️⃣ Tokens retired
-    const { data: retired, error: retiredErr } = await supabase
-        .from("tokenEvents")
-        .select("id")
-        .eq("eventType", "Retirement")
-        .eq("firstOwner", userID);
-    if (retiredErr) console.error(retiredErr);
-    history.tokensRetired = retired ? retired.length : 0;
+  const retiredIDs = await getTokenIDsFromEvents(userID, 'Retirement', 'firstOwner');
+  history.tokensRetired = await sumCreditProportionForTokens(retiredIDs);
 
-    // 5️⃣ Jobs created (operator only)
-    if (role === "operator") {
-        const { data: jobs, error: jobsErr } = await supabase
-            .from("jobs")
-            .select("jobID")
-            .eq("operatorID", userID);
-        if (jobsErr) console.error(jobsErr);
-        history.jobsCreated = jobs ? jobs.length : 0;
-    }
+  if (role === "Operator") {
+    const { data: jobs, error: jobsErr } = await supabase
+      .from('Jobs')
+      .select('jobID')
+      .eq('operatorID', userID);
+    if (jobsErr) console.error(jobsErr);
+    history.jobsCreated = jobs ? jobs.length : 0;
+  }
 
-    // 6️⃣ Tokens currently owned
-    const { data: owned, error: ownedErr } = await supabase
-        .from("tokens")
-        .select("tokenID")
-        .eq("ownerID", userID);
-    if (ownedErr) console.error(ownedErr);
-    history.currentTokensOwned = owned ? owned.length : 0;
+  const { data: owned, error: ownedErr } = await supabase
+    .from('Tokens')
+    .select('tokenID, creditProportion')
+    .eq('ownerID', userID);
 
-    // 7️⃣ Full event list (filter out minting for buyers)
-    let eventQuery = supabase
-        .from("tokenEvents")
-        .select("*")
-        .or(`firstOwner.eq.${userID},newOwner.eq.${userID}`)
-        .order("createdAt", { ascending: false });
+  if (ownedErr) console.error(ownedErr);
 
-    if (role === "buyer") {
-        eventQuery = eventQuery.neq("eventType", "Minting");
-    }
+  const ownedByUser: Record<number, number> = {};
+  owned?.forEach(t => {
+    ownedByUser[t.tokenID] = (ownedByUser[t.tokenID] || 0) + Number(t.creditProportion);
+  });
+  history.currentTokensOwned = Object.values(ownedByUser).reduce((sum, v) => sum + v, 0);
 
-    const { data: events, error: eventsErr } = await eventQuery;
-    if (eventsErr) console.error(eventsErr);
-    history.events = events || [];
+  let eventQuery = supabase
+    .from('tokenEvents')
+    .select('*')
+    .or(`firstOwner.eq.${userID},newOwner.eq.${userID}`)
+    .order('createdAt', { ascending: false });
 
-    return history;
+  if (role === "buyer") {
+    eventQuery = eventQuery.neq('eventType', 'Minting');
+  }
+
+  const { data: events, error: eventsErr } = await eventQuery;
+  if (eventsErr) console.error(eventsErr);
+  history.events = events || [];
+
+  return history;
 }
+
 
 export async function mintTokenEvent(userID: number, tokenID: number, hashInformationConfirmation: string) {
     const { data, error } = await supabase.from('tokenEvents').insert([
@@ -143,4 +123,35 @@ export async function retireTokenEvent(userID: number, tokenID: number, hashInfo
         return null;
     }
     return data;
+}
+
+async function getTokenIDsFromEvents(userID: number, eventType: string, ownerField: 'firstOwner' | 'newOwner') {
+  const { data, error } = await supabase
+    .from('tokenEvents')
+    .select('tokenID')
+    .eq('eventType', eventType)
+    .eq(ownerField, userID);
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return data?.map(d => d.tokenID) || [];
+}
+
+async function sumCreditProportionForTokens(tokenIDs: number[]) {
+  if (!tokenIDs.length) return 0;
+
+  const { data, error } = await supabase
+    .from('Tokens')
+    .select('creditProportion')
+    .in('tokenID', tokenIDs);
+
+  if (error) {
+    console.error(error);
+    return 0;
+  }
+
+  return data?.reduce((sum, t) => sum + Number(t.creditProportion), 0) || 0;
 }
