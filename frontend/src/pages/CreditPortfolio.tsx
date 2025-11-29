@@ -138,6 +138,13 @@ export default function CreditPortfolioPage() {
   const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
   const [fetchingTokens, setFetchingTokens] = useState(false);
 
+  // Retire modal state
+  const { isOpen: isRetireOpen, onOpen: onRetireOpen, onClose: onRetireClose } = useDisclosure();
+  const [retireConfirmText, setRetireConfirmText] = useState("");
+  const [isRetiringTokens, setIsRetiringTokens] = useState(false);
+  const [tokensToRetire, setTokensToRetire] = useState<Token[]>([]);
+  const [fetchingRetireTokens, setFetchingRetireTokens] = useState(false);
+
   // Get unique operators for dropdown
   const uniqueOperators = useMemo(() => {
     if (!isAdmin) return [];
@@ -385,6 +392,34 @@ export default function CreditPortfolioPage() {
     }
   };
 
+  // Handle retire tokens
+  const handleRetireTokens = async (e: React.MouseEvent, g: GroupedToken) => {
+    e.stopPropagation();
+    setSelectedGroupedToken(g);
+    setRetireConfirmText("");
+    setFetchingRetireTokens(true);
+    onRetireOpen();
+
+    try {
+      // Fetch available tokens for this job that can be retired
+      const tokensRes = await fetch(`${API}/tokens`);
+      if (tokensRes.ok) {
+        const allTokens: Token[] = await tokensRes.json();
+        const retirableTokens = allTokens.filter(
+          t => t.jobID === g.jobID && 
+               t.ownerID === myOperatorID && 
+               t.status === "Minted"
+        );
+        setTokensToRetire(retirableTokens);
+      }
+    } catch (e) {
+      console.error("Error fetching tokens:", e);
+      setTokensToRetire([]);
+    } finally {
+      setFetchingRetireTokens(false);
+    }
+  };
+
   // Navigate to token history page
   const handleViewTokenHistory = () => {
     if (selectedGroupedToken) {
@@ -483,6 +518,81 @@ export default function CreditPortfolioPage() {
       console.error("Error creating listing:", error);
     } finally {
       setIsCreatingListing(false);
+    }
+  };
+
+  // Handle confirming token retirement
+  const handleConfirmRetire = async () => {
+    if (retireConfirmText !== "CONFIRM") {
+      toast({
+        title: "Confirmation Required",
+        description: "Please type CONFIRM in the text box to proceed.",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (tokensToRetire.length === 0) {
+      toast({
+        title: "No Tokens",
+        description: "No tokens available to retire",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsRetiringTokens(true);
+
+    try {
+      const tokenIDs = tokensToRetire.map(token => token.tokenID);
+
+      const retireRes = await fetch(`${API}/tokens/retire`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tokenIDs: tokenIDs,
+          ownerID: myOperatorID,
+        }),
+      });
+
+      if (!retireRes.ok) {
+        const errorData = await retireRes.json();
+        throw new Error(errorData.error || "Failed to retire tokens");
+      }
+
+      const result = await retireRes.json();
+
+      toast({
+        title: "Tokens Retired",
+        description: result.message || `Successfully retired ${tokenIDs.length} token(s)`,
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      });
+
+      // Reset and close
+      setSelectedGroupedToken(null);
+      setRetireConfirmText("");
+      setTokensToRetire([]);
+      onRetireClose();
+
+      // Refresh grouped tokens to reflect status changes
+      await fetchGroupedTokens();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to retire tokens",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      console.error("Error retiring tokens:", error);
+    } finally {
+      setIsRetiringTokens(false);
     }
   };
 
@@ -617,7 +727,7 @@ export default function CreditPortfolioPage() {
                   </Text>
                 )}
 
-                {/* Show marketplace status or List for Sale button - only for non-admin users */}
+                {/* Show marketplace status or action buttons - only for non-admin users */}
                 {!isAdmin && g.status === "Minted" && (
                   <>
                     {jobsWithTokensOnMarketplace.has(g.jobID) ? (
@@ -633,15 +743,25 @@ export default function CreditPortfolioPage() {
                         On The Marketplace
                       </Badge>
                     ) : (
-                      <Button
-                        size="sm"
-                        colorScheme="green"
-                        onClick={(e) => handleListForSale(e, g)}
-                        mt={2}
-                        width="full"
-                      >
-                        List for Sale
-                      </Button>
+                      <HStack spacing={2} width="full" mt={2}>
+                        <Button
+                          size="sm"
+                          colorScheme="green"
+                          onClick={(e) => handleListForSale(e, g)}
+                          flex={1}
+                        >
+                          List for Sale
+                        </Button>
+                        <Button
+                          size="sm"
+                          colorScheme="red"
+                          variant="outline"
+                          onClick={(e) => handleRetireTokens(e, g)}
+                          flex={1}
+                        >
+                          Retire
+                        </Button>
+                      </HStack>
                     )}
                   </>
                 )}
@@ -988,6 +1108,97 @@ export default function CreditPortfolioPage() {
                 isDisabled={!selectedGroupedToken || availableTokens.length === 0 || fetchingTokens}
               >
                 Create Listing
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      )}
+
+      {/* Retire tokens modal (only for non-admin users) */}
+      {!isAdmin && (
+        <Modal isOpen={isRetireOpen} onClose={onRetireClose} size="md">
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader color="red.600">Retire Carbon Credits</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <VStack spacing={4}>
+                {selectedGroupedToken && (
+                  <>
+                    <Alert status="warning" borderRadius="md">
+                      <AlertIcon />
+                      <Box>
+                        <Text fontWeight="bold">Warning: This action cannot be undone!</Text>
+                        <Text fontSize="sm" mt={1}>
+                          Retiring tokens permanently removes them from circulation. 
+                          They cannot be sold, transferred, or recovered after retirement.
+                        </Text>
+                      </Box>
+                    </Alert>
+
+                    <FormControl>
+                      <FormLabel>Job</FormLabel>
+                      <Input value={`Job #${selectedGroupedToken.jobID}`} isReadOnly />
+                    </FormControl>
+
+                    {fetchingRetireTokens ? (
+                      <Box textAlign="center" py={4} width="full">
+                        <Spinner size="lg" />
+                        <Text mt={2}>Fetching tokens...</Text>
+                      </Box>
+                    ) : (
+                      <>
+                        {tokensToRetire.length > 0 ? (
+                          <Alert status="info" borderRadius="md">
+                            <AlertIcon />
+                            <Box>
+                              <Text fontWeight="semibold">
+                                {tokensToRetire.length} token(s) will be retired
+                              </Text>
+                              <Text fontSize="sm">
+                                Total credits: {tokensToRetire.reduce((sum, t) => sum + t.creditProportion, 0).toFixed(2)} tCO2e
+                              </Text>
+                            </Box>
+                          </Alert>
+                        ) : (
+                          <Alert status="warning" borderRadius="md">
+                            <AlertIcon />
+                            No tokens available to retire for this job.
+                          </Alert>
+                        )}
+
+                        <FormControl isRequired isDisabled={tokensToRetire.length === 0}>
+                          <FormLabel>Confirmation</FormLabel>
+                          <Input
+                            placeholder='Type "CONFIRM" to retire these tokens'
+                            value={retireConfirmText}
+                            onChange={(e) => setRetireConfirmText(e.target.value)}
+                            borderColor={retireConfirmText === "CONFIRM" ? "red.500" : "gray.200"}
+                            _focus={{ borderColor: retireConfirmText === "CONFIRM" ? "red.500" : "blue.500" }}
+                          />
+                          <Text fontSize="xs" color="gray.500" mt={1}>
+                            Type CONFIRM (all caps) to proceed with retirement
+                          </Text>
+                        </FormControl>
+                      </>
+                    )}
+                  </>
+                )}
+              </VStack>
+            </ModalBody>
+
+            <ModalFooter>
+              <Button variant="ghost" mr={3} onClick={onRetireClose}>
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleConfirmRetire}
+                isLoading={isRetiringTokens}
+                loadingText="Retiring Tokens..."
+                isDisabled={!selectedGroupedToken || tokensToRetire.length === 0 || fetchingRetireTokens || retireConfirmText !== "CONFIRM"}
+              >
+                Retire Tokens
               </Button>
             </ModalFooter>
           </ModalContent>
