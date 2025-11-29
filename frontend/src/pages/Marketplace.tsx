@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../context/authContext";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Heading,
@@ -35,8 +36,6 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
-  IconButton,
-  Tooltip,
   Table,
   Thead,
   Tbody,
@@ -45,7 +44,7 @@ import {
   Td,
   TableContainer,
 } from "@chakra-ui/react";
-import { ViewIcon } from "@chakra-ui/icons";
+// Removed ViewIcon import as it is no longer needed
 
 type Listing = {
   listingID: number;
@@ -64,6 +63,7 @@ type Listing = {
     tokenID: number;
     quality: number;
     creditProportion: number;
+    jobID?: number;
   }>;
   minQuality: number;
   maxQuality: number;
@@ -86,8 +86,9 @@ export default function MarketplacePage() {
 
   const { user } = useContext<any>(Context);
   const toast = useToast();
+  const navigate = useNavigate();
   const [listings, setListings] = useState<Listing[]>([]);
-  const [allListingsForDropdown, setAllListingsForDropdown] = useState<Listing[]>([]); // All listings for company dropdown
+  const [allListingsForDropdown, setAllListingsForDropdown] = useState<Listing[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -104,8 +105,9 @@ export default function MarketplacePage() {
   // Modal state for listing details
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
   const [detailListing, setDetailListing] = useState<Listing | null>(null);
+  const [detailListingJobID, setDetailListingJobID] = useState<number | null>(null);
 
-  // --- NEW: Modal state for removing listing ---
+  // Modal state for removing listing
   const { isOpen: isRemoveOpen, onOpen: onRemoveOpen, onClose: onRemoveClose } = useDisclosure();
   const [listingToRemove, setListingToRemove] = useState<Listing | null>(null);
   const [removeConfirmText, setRemoveConfirmText] = useState("");
@@ -124,12 +126,29 @@ export default function MarketplacePage() {
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
 
-
   // Determine if date filters are active
   const isDateFilterActive = dateAfter !== "" || dateBefore !== "";
   const isRecencyFilterActive = recencyFilter !== "all";
 
-  // Fetch all listings for company dropdown (always fetch all, regardless of filters)
+  // Helper function to get seller name
+  const getSellerName = (sellerID: number): string => {
+    const seller = users.find(u => u.userID === sellerID);
+    return seller?.organizationName || seller?.email || `Seller ${sellerID}`;
+  };
+
+  // Get unique companies for dropdown
+  const uniqueCompanies = useMemo(() => {
+    const companies = new Set<string>();
+    allListingsForDropdown.forEach(listing => {
+      const companyName = listing.seller?.organizationName || getSellerName(listing.sellerID);
+      if (companyName && companyName !== "Unknown") {
+        companies.add(companyName);
+      }
+    });
+    return Array.from(companies).sort();
+  }, [allListingsForDropdown, users]);
+
+  // Fetch all listings for company dropdown
   const fetchAllListingsForDropdown = async () => {
     if (!user) return;
     
@@ -137,7 +156,6 @@ export default function MarketplacePage() {
       const uRes = await fetch(`${API}/users`);
       const allUsers: UserRow[] = await uRes.json();
       
-      // Determine if user is admin
       const me =
         allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
         allUsers.find(
@@ -151,23 +169,19 @@ export default function MarketplacePage() {
       
       let endpoint: string;
       if (userIsAdmin) {
-        // Admins see ALL listings using date range with broad dates
         endpoint = `${API}/listings/date-range?start=1900-01-01T00:00:00Z&end=2099-12-31T23:59:59Z`;
       } else {
-        // Regular users see only active listings
         endpoint = `${API}/listings/active`;
       }
       
       const lRes = await fetch(endpoint);
       if (!lRes.ok) {
         console.error(`Failed to fetch all listings for dropdown: ${lRes.status} ${lRes.statusText}`);
-        console.error("Endpoint:", endpoint);
         return;
       }
       
       const listingsData = await lRes.json();
       
-      // Process listings - quality data should already be included from backend
       const processedListings = (listingsData || []).map((listing: any) => {
         const seller = listing.seller || allUsers?.find((u: any) => u.userID === listing.sellerID);
         return {
@@ -187,7 +201,7 @@ export default function MarketplacePage() {
     }
   };
 
-  // Fetch listings and users (with filters for admin)
+  // Fetch listings and users
   const fetchListings = async () => {
     if (!user) {
       setLoading(false);
@@ -197,7 +211,6 @@ export default function MarketplacePage() {
     let endpoint: string = "";
     
     try {
-      // Get all users for seller info
       const uRes = await fetch(`${API}/users`);
       if (!uRes.ok) {
         throw new Error(`Failed to fetch users: ${uRes.status} ${uRes.statusText}`);
@@ -205,7 +218,6 @@ export default function MarketplacePage() {
       const allUsers: UserRow[] = await uRes.json();
       setUsers(allUsers);
   
-      // Find current user to check if admin
       const me =
         allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
         allUsers.find(
@@ -223,23 +235,17 @@ export default function MarketplacePage() {
         setIsBuyer(userRole === "buyer");
       }
   
-      // Determine if user is admin
       const userIsAdmin = me?.role?.toLowerCase() === "slb admin" || me?.role?.toLowerCase() === "slb_admin";
 
       let listingsData: any[] = [];
       
       if (userIsAdmin) {
-        // If status filter is "all" or "Complete", we need all listings (filtered endpoint only returns active)
-        // Otherwise, check if any admin filters are active
         const needsAllListings = statusFilter === "all" || statusFilter === "Complete";
         const hasAdminFilters = minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all") || minPrice || maxPrice;
         
         if (needsAllListings || !hasAdminFilters) {
-          // Get all listings (for status filtering or when no server-side filters)
           endpoint = `${API}/listings/date-range?start=1900-01-01T00:00:00Z&end=2099-12-31T23:59:59Z`;
         } else {
-          // Use filtered endpoint (only returns active listings, status filter will be applied client-side for "Active")
-          // Only use this when statusFilter is "Active" and we have admin filters
           const params = new URLSearchParams();
           if (minQuality) params.append("minQuality", minQuality);
           if (sellerIDFilter) params.append("sellerID", sellerIDFilter);
@@ -251,7 +257,6 @@ export default function MarketplacePage() {
           endpoint = `${API}/listings/active/filtered${params.toString() ? `?${params.toString()}` : ''}`;
         }
       } else {
-        // Regular users see only active listings
         endpoint = `${API}/listings/active`;
       }
   
@@ -270,7 +275,6 @@ export default function MarketplacePage() {
 
       listingsData = await lRes.json();
       
-      // Process listings - quality data should already be included from backend
       const processedListings = (listingsData || []).map((listing: any) => {
         const seller = listing.seller || allUsers?.find((u: any) => u.userID === listing.sellerID);
         return {
@@ -280,65 +284,33 @@ export default function MarketplacePage() {
           minQuality: listing.minQuality ?? 0,
           maxQuality: listing.maxQuality ?? 0,
           avgQuality: listing.avgQuality ?? 0,
-          // Normalize date field
           CreatedAt: listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString(),
         };
       });
       
       setListings(processedListings);
-      setErr(null); // Clear any previous errors
     } catch (e: any) {
-      const errorMessage = e.message || "Failed to load listings";
-      console.error("Error fetching listings:", e);
-      console.error("Endpoint attempted:", endpoint || "Not set");
-      console.error("API base URL:", API);
-      setErr(errorMessage);
-      toast({
-        title: "Error",
-        description: errorMessage,
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
+      setErr(e.message || "Failed to load listings");
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch all listings for dropdown on mount and when user changes
   useEffect(() => {
+    fetchListings();
     fetchAllListingsForDropdown();
   }, [API, user]);
 
-  // Fetch filtered listings when filters change
+  // Re-fetch when admin filters change
   useEffect(() => {
-    fetchListings();
-  }, [API, user, minQuality, sellerIDFilter, tokenIDFilter, dateAfter, dateBefore, companyFilter, statusFilter, minPrice, maxPrice]);
+    if (isAdmin) {
+      fetchListings();
+    }
+  }, [minQuality, sellerIDFilter, tokenIDFilter, dateAfter, dateBefore, companyFilter, statusFilter]);
 
-  // Get seller name from users array
-  const getSellerName = (sellerID: number | null) => {
-    if (!sellerID) return "Unknown";
-    const seller = users.find((u) => u.userID === sellerID);
-    return seller?.organizationName || seller?.email || `Seller ${sellerID}`;
-  };
-
-  // Get unique company names for filter dropdown - use allListingsForDropdown, not filtered listings
-  // This ensures all companies are always shown in the dropdown regardless of current filters
-  const uniqueCompanies = useMemo(() => {
-    const companies = new Set<string>();
-    // Always use allListingsForDropdown to show all available companies
-    allListingsForDropdown.forEach((listing) => {
-      const companyName = listing.seller?.organizationName || getSellerName(listing.sellerID);
-      if (companyName && companyName !== "Unknown") {
-        companies.add(companyName);
-      }
-    });
-    return Array.from(companies).sort();
-  }, [allListingsForDropdown]);
-
-  // Helper function to check if a date is within a recency period
-  const isWithinRecency = (dateString: string, recency: string): boolean => {
-    const date = new Date(dateString);
+  // Helper functions for filtering
+  const isWithinRecency = (dateStr: string, recency: string): boolean => {
+    const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = diffMs / (1000 * 60 * 60 * 24);
@@ -356,21 +328,15 @@ export default function MarketplacePage() {
         return diffDays <= 90;
       case "year":
         return diffDays <= 365;
-      case "all":
       default:
         return true;
     }
   };
 
-  // Helper function to check if a date is within a date range
-  const isWithinDateRange = (
-    dateString: string,
-    after: string,
-    before: string
-  ): boolean => {
+  const isWithinDateRange = (dateStr: string, after: string, before: string): boolean => {
     if (!after && !before) return true;
 
-    const date = new Date(dateString);
+    const date = new Date(dateStr);
 
     if (after) {
       const afterDate = new Date(after);
@@ -387,23 +353,15 @@ export default function MarketplacePage() {
     return true;
   };
 
-  // Enhanced filtering logic (client-side for recency, search, and status)
-  // Note: For admin, when using filtered endpoint, server-side filters (minQuality, sellerID, tokenID, dateAfter, dateBefore, companyName) 
-  // are already applied. When fetching all listings, we apply all filters client-side.
+  // Filtering logic
   const filtered = useMemo(
     () =>
       listings.filter((listing) => {
-        // Status filter (client-side, applies to all users)
         const matchesStatus = statusFilter === "all" || listing.Status === statusFilter;
-
-        // Admin filters (only apply client-side if we fetched all listings, not filtered endpoint)
-        // Check if we're using server-side filters by checking if we have admin filters but status is not "Complete" or "all"
-        // Note: Price filters are always client-side since backend doesn't support them in filtered endpoint
         const usingServerSideFilters = isAdmin && statusFilter === "Active" && (minQuality || sellerIDFilter || tokenIDFilter || dateAfter || dateBefore || (companyFilter !== "all"));
         
         let matchesAdminFilters = true;
         if (isAdmin && !usingServerSideFilters) {
-          // Apply admin filters client-side (when we fetched all listings)
           if (minQuality) {
             const listingMinQuality = listing.minQuality || 0;
             if (listingMinQuality < parseFloat(minQuality)) matchesAdminFilters = false;
@@ -418,13 +376,11 @@ export default function MarketplacePage() {
             const sellerName = listing.seller?.organizationName || getSellerName(listing.sellerID);
             if (sellerName !== companyFilter) matchesAdminFilters = false;
           }
-          // Date filters - only apply client-side if we didn't use server-side filtering
           if (dateAfter || dateBefore) {
             if (!isWithinDateRange(listing.CreatedAt, dateAfter, dateBefore)) {
               matchesAdminFilters = false;
             }
           }
-          // Price filters - always client-side
           if (minPrice) {
             const listingPrice = listing.Price || 0;
             if (listingPrice < parseFloat(minPrice)) matchesAdminFilters = false;
@@ -435,7 +391,6 @@ export default function MarketplacePage() {
           }
         }
         
-        // Price filters - also apply when using server-side filters (since price isn't supported server-side)
         if (isAdmin && usingServerSideFilters) {
           if (minPrice) {
             const listingPrice = listing.Price || 0;
@@ -447,14 +402,11 @@ export default function MarketplacePage() {
           }
         }
         
-        // Operator and Buyer filters - apply quality and price filters client-side
         if ((isOperator || isBuyer) && !isAdmin) {
-          // Quality filter - operators and buyers see minQuality
           if (minQuality) {
             const listingMinQuality = listing.minQuality || 0;
             if (listingMinQuality < parseFloat(minQuality)) return false;
           }
-          // Price filters
           if (minPrice) {
             const listingPrice = listing.Price || 0;
             if (listingPrice < parseFloat(minPrice)) return false;
@@ -465,21 +417,16 @@ export default function MarketplacePage() {
           }
         }
 
-        // Recency filter (only applied if date filters are not active)
-        // If admin is using server-side date filters, skip client-side recency filter
         const matchesRecency =
           (isAdmin && usingServerSideFilters && (dateAfter || dateBefore)) ? true :
           recencyFilter === "all" ||
           isWithinRecency(listing.CreatedAt, recencyFilter);
 
-        // Date range filter (only applied if recency filter is not active)
-        // If admin is using server-side date filters, skip client-side date range filter
         const matchesDateRange =
           (isAdmin && usingServerSideFilters && (dateAfter || dateBefore)) ? true :
           isRecencyFilterActive ||
           isWithinDateRange(listing.CreatedAt, dateAfter, dateBefore);
 
-        // Search query filter (always client-side)
         const sellerName = listing.seller?.organizationName || getSellerName(listing.sellerID);
         const matchesQ =
           !q ||
@@ -534,7 +481,6 @@ export default function MarketplacePage() {
     return "red";
   };
 
-  // Helper function to get display text for recency filter
   const getRecencyDisplayText = (recency: string): string => {
     switch (recency) {
       case "today":
@@ -554,34 +500,51 @@ export default function MarketplacePage() {
     }
   };
 
-  // Check if user can purchase a listing
   const canPurchaseListing = (listing: Listing): boolean => {
     if (!currentUser) return false;
-    
-    // Cannot purchase if user is the seller
     if (currentUser.userID === listing.sellerID) return false;
-    
-    // Cannot purchase if user is admin
     if (isAdmin) return false;
-    
-    // Only Buyers and Operators can purchase
     const userRole = currentUser.role?.toLowerCase();
     return userRole === "buyer" || userRole === "operator";
   };
 
-  // Handle opening the purchase confirmation modal
   const handlePurchaseClick = (listing: Listing) => {
     setSelectedListing(listing);
     onPurchaseOpen();
   };
 
-  // Handle viewing listing details
-  const handleViewDetails = (listing: Listing) => {
+  // Handle viewing listing details - now also fetches jobID for the tokens
+  const handleViewDetails = async (listing: Listing) => {
     setDetailListing(listing);
+    setDetailListingJobID(null);
     onDetailOpen();
+
+    // Try to get the jobID for the tokens in this listing
+    if (listing.tokens && listing.tokens.length > 0) {
+      try {
+        const tokenRes = await fetch(`${API}/tokens/${listing.tokens[0]}`);
+        if (tokenRes.ok) {
+          const token = await tokenRes.json();
+          if (token && token.jobID) {
+            setDetailListingJobID(token.jobID);
+          }
+        }
+      } catch (e) {
+        console.error("Error fetching token details:", e);
+      }
+    }
   };
 
-  // Handle completing the purchase
+  // Navigate to token history page
+  const handleViewTokenHistory = () => {
+    if (detailListingJobID) {
+      navigate(`/token-history/${detailListingJobID}`);
+    } else if (detailListing && detailListing.tokens && detailListing.tokens.length > 0) {
+      // Navigate with tokenID if no jobID available
+      navigate(`/token-history?tokenId=${detailListing.tokens[0]}`);
+    }
+  };
+
   const handleCompletePurchase = async () => {
     if (!selectedListing || !currentUser) return;
 
@@ -615,7 +578,6 @@ export default function MarketplacePage() {
         isClosable: true,
       });
 
-      // Close modal and refresh listings
       onPurchaseClose();
       setSelectedListing(null);
       await Promise.all([fetchListings(), fetchAllListingsForDropdown()]);
@@ -634,16 +596,15 @@ export default function MarketplacePage() {
     }
   };
 
-  // --- NEW: Handle remove click ---
   const handleRemoveClick = (listing: Listing) => {
     setListingToRemove(listing);
     setRemoveConfirmText("");
     onRemoveOpen();
   };
 
-  // --- NEW: Handle confirm remove ---
   const handleConfirmRemove = async () => {
     if (!listingToRemove) return;
+    
     if (removeConfirmText !== "CONFIRM") {
       toast({
         title: "Confirmation Required",
@@ -654,64 +615,35 @@ export default function MarketplacePage() {
       });
       return;
     }
-
+  
     setIsRemoving(true);
     try {
-      // We set the status to 'Inactive' to remove it from the active marketplace
-      const response = await fetch(`${API}/listings/${listingToRemove.listingID}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          newStatus: "Inactive",
-        }),
+      const response = await fetch(`${API}/listings/${listingToRemove.listingID}`, {
+        method: "DELETE",
       });
-
+  
       if (!response.ok) {
-        throw new Error("Failed to remove listing");
+        throw new Error("Failed to delete listing");
       }
-
-      // Update all tokens in this listing back to "Minted" status
-      if (listingToRemove.tokens && listingToRemove.tokens.length > 0) {
-        const tokenUpdatePromises = listingToRemove.tokens.map(async (tokenID) => {
-          try {
-            const tokenResponse = await fetch(`${API}/tokens/${tokenID}/status`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ newStatus: "Minted" }),
-            });
-            
-            if (!tokenResponse.ok) {
-              console.error(`Failed to update token ${tokenID} status`);
-            }
-          } catch (error) {
-            console.error(`Error updating token ${tokenID}:`, error);
-          }
-        });
-
-        // Wait for all token updates to complete
-        await Promise.all(tokenUpdatePromises);
-      }
-
+  
       toast({
-        title: "Listing Removed",
-        description: "The listing has been removed from the marketplace and tokens have been returned to your portfolio.",
+        title: "Listing Deleted",
+        description: "The listing has been permanently deleted and tokens returned to your portfolio.",
         status: "success",
         duration: 5000,
         isClosable: true,
       });
-
+  
       onRemoveClose();
       setListingToRemove(null);
-      // Refresh listings
+      
       await Promise.all([fetchListings(), fetchAllListingsForDropdown()]);
-
+  
     } catch (error: any) {
       console.error("Error removing listing:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to remove listing",
+        description: error.message || "Failed to delete listing",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -759,7 +691,7 @@ export default function MarketplacePage() {
       {/* Search and filter section */}
       <VStack align="stretch" spacing={4} mb={6}>
 
-        {/* Operator and Buyer filters - Price and Quality */}
+        {/* Operator and Buyer filters */}
         {(isOperator || isBuyer) && !isAdmin && (
           <>
             <Divider />
@@ -768,7 +700,6 @@ export default function MarketplacePage() {
             </Text>
 
             <Wrap spacing={3} align="center">
-              {/* Minimum Quality filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -786,7 +717,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Min Price filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -804,7 +734,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Max Price filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -834,7 +763,6 @@ export default function MarketplacePage() {
             </Text>
 
             <Wrap spacing={3} align="center">
-              {/* Recency filter */}
               {!isDateFilterActive && (
                 <WrapItem>
                   <FormControl>
@@ -858,7 +786,6 @@ export default function MarketplacePage() {
                 </WrapItem>
               )}
 
-              {/* Date range filters */}
               {!isRecencyFilterActive && (
                 <>
                   <WrapItem>
@@ -891,7 +818,6 @@ export default function MarketplacePage() {
                 </>
               )}
 
-              {/* Company name filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -912,7 +838,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Minimum Quality filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -930,7 +855,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Seller ID filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -946,7 +870,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Token ID filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -962,7 +885,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Min Price filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -980,7 +902,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Max Price filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -998,7 +919,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
 
-              {/* Status filter */}
               <WrapItem>
                 <FormControl>
                   <FormLabel fontSize="sm" mb={1}>
@@ -1016,8 +936,6 @@ export default function MarketplacePage() {
                 </FormControl>
               </WrapItem>
             </Wrap>
-
-            
           </>
         )}
       </VStack>
@@ -1129,6 +1047,8 @@ export default function MarketplacePage() {
           <Card
             key={listing.listingID}
             transition="all 0.2s"
+            cursor="pointer"
+            onClick={() => handleViewDetails(listing)}
             _hover={{
               transform: "translateY(-4px)",
               boxShadow: "lg",
@@ -1143,26 +1063,12 @@ export default function MarketplacePage() {
                   <Badge colorScheme={listing.Status === 'Active' ? 'green' : 'gray'}>
                     {listing.Status}
                   </Badge>
-                  {isAdmin && (
-                    <Tooltip label="View Details">
-                      <IconButton
-                        aria-label="View details"
-                        icon={<ViewIcon />}
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewDetails(listing);
-                        }}
-                      />
-                    </Tooltip>
-                  )}
+                  {/* View Details Eye Icon Removed - Card is now clickable */}
                 </HStack>
               </HStack>
             </CardHeader>
             <CardBody pt={0}>
               <VStack align="start" spacing={3}>
-                {/* Seller Info */}
                 <Box width="100%">
                   <Text fontSize="sm" fontWeight="bold" color="gray.600">
                     Seller
@@ -1177,7 +1083,6 @@ export default function MarketplacePage() {
 
                 <Divider />
 
-                {/* Quality - Show avgQuality for admins, minQuality for others */}
                 <Box width="100%">
                   <HStack justify="space-between" mb={1}>
                     <Text fontSize="sm" fontWeight="bold" color="gray.600">
@@ -1200,7 +1105,6 @@ export default function MarketplacePage() {
 
                 <Divider />
 
-                {/* Price & Token Count */}
                 <HStack width="100%" justify="space-between">
                   <Box>
                     <Text fontSize="sm" fontWeight="bold" color="gray.600">
@@ -1220,28 +1124,28 @@ export default function MarketplacePage() {
                   </Box>
                 </HStack>
 
-                {/* Date Added */}
                 <Box width="100%">
                   <Text fontSize="xs" color="gray.500">
                     Added: {new Date(listing.CreatedAt).toLocaleString()}
                   </Text>
                 </Box>
 
-                {/* Purchase Button - Only shown for eligible users */}
                 {canPurchaseListing(listing) && (
                   <>
                     <Divider />
                     <Button
                       colorScheme="blue"
                       width="100%"
-                      onClick={() => handlePurchaseClick(listing)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePurchaseClick(listing);
+                      }}
                     >
                       Purchase Listing
                     </Button>
                   </>
                 )}
 
-                {/* Show message if user owns the listing - MODIFIED to add Remove button */}
                 {currentUser && currentUser.userID === listing.sellerID && !isAdmin && (
                   <>
                     <Divider />
@@ -1297,38 +1201,32 @@ export default function MarketplacePage() {
                 <Box width="100%" p={4} bg="gray.50" borderRadius="md">
                   <VStack align="start" spacing={2}>
                     <HStack justify="space-between" width="100%">
-                      <Text fontWeight="bold">Listing ID:</Text>
-                      <Text>#{selectedListing.listingID}</Text>
+                      <Text fontWeight="bold">Price:</Text>
+                      <Text color="green.600" fontWeight="bold">
+                        ${selectedListing.Price?.toFixed(2)}
+                      </Text>
                     </HStack>
-                    
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Tokens:</Text>
+                      <Text>{selectedListing.tokens?.length || 0}</Text>
+                    </HStack>
                     <HStack justify="space-between" width="100%">
                       <Text fontWeight="bold">Seller:</Text>
                       <Text>
-                        {selectedListing.seller?.organizationName ||
-                          getSellerName(selectedListing.sellerID)}
-                      </Text>
-                    </HStack>
-                    
-                    <HStack justify="space-between" width="100%">
-                      <Text fontWeight="bold">Number of Tokens:</Text>
-                      <Text>{selectedListing.tokens?.length || 0}</Text>
-                    </HStack>
-                  
-                    
-                    <Divider />
-                    
-                    <HStack justify="space-between" width="100%">
-                      <Text fontWeight="bold" fontSize="lg">Total Price:</Text>
-                      <Text fontWeight="bold" fontSize="lg" color="green.600">
-                        ${selectedListing.Price?.toFixed(2) || "0.00"}
+                        {selectedListing.seller?.organizationName || 
+                         selectedListing.seller?.email || 
+                         `Seller ${selectedListing.sellerID}`}
                       </Text>
                     </HStack>
                   </VStack>
                 </Box>
-                
-                <Text fontSize="sm" color="gray.600">
-                  The tokens will be transferred to your account and the listing will be marked as complete.
-                </Text>
+
+                <Alert status="info" size="sm">
+                  <AlertIcon />
+                  <Text fontSize="sm">
+                    Upon purchase, the tokens will be transferred to your portfolio.
+                  </Text>
+                </Alert>
               </VStack>
             )}
           </ModalBody>
@@ -1349,7 +1247,7 @@ export default function MarketplacePage() {
         </ModalContent>
       </Modal>
 
-      {/* NEW: Remove Listing Modal */}
+      {/* Remove Listing Confirmation Modal */}
       <Modal isOpen={isRemoveOpen} onClose={onRemoveClose} isCentered>
         <ModalOverlay />
         <ModalContent>
@@ -1358,41 +1256,36 @@ export default function MarketplacePage() {
           <ModalBody>
             {listingToRemove && (
               <VStack align="start" spacing={4}>
-                <Alert status="warning" borderRadius="md">
+                <Alert status="warning">
                   <AlertIcon />
-                  <Box>
-                    <Text fontWeight="bold">Warning</Text>
-                    <Text fontSize="sm">
-                      Removing this listing will take it off the marketplace. 
-                    </Text>
-                  </Box>
+                  <Text fontSize="sm">
+                    This will permanently delete the listing and return the tokens to your portfolio.
+                  </Text>
                 </Alert>
 
                 <Box width="100%" p={4} bg="gray.50" borderRadius="md">
                   <VStack align="start" spacing={2}>
                     <HStack justify="space-between" width="100%">
                       <Text fontWeight="bold">Listing ID:</Text>
-                      <Text>#{listingToRemove.listingID}</Text>
-                    </HStack>
-                    <HStack justify="space-between" width="100%">
-                      <Text fontWeight="bold">Tokens:</Text>
-                      <Text>{listingToRemove.tokens?.length || 0}</Text>
+                      <Text>{listingToRemove.listingID}</Text>
                     </HStack>
                     <HStack justify="space-between" width="100%">
                       <Text fontWeight="bold">Price:</Text>
                       <Text>${listingToRemove.Price?.toFixed(2)}</Text>
                     </HStack>
+                    <HStack justify="space-between" width="100%">
+                      <Text fontWeight="bold">Tokens:</Text>
+                      <Text>{listingToRemove.tokens?.length || 0}</Text>
+                    </HStack>
                   </VStack>
                 </Box>
 
-                <FormControl isRequired>
-                  <FormLabel>Confirmation</FormLabel>
+                <FormControl>
+                  <FormLabel>Type "CONFIRM" to proceed</FormLabel>
                   <Input
-                    placeholder='Type "CONFIRM" to remove listing'
                     value={removeConfirmText}
                     onChange={(e) => setRemoveConfirmText(e.target.value)}
-                    borderColor={removeConfirmText === "CONFIRM" ? "red.500" : "gray.200"}
-                    _focus={{ borderColor: removeConfirmText === "CONFIRM" ? "red.500" : "blue.500" }}
+                    placeholder="CONFIRM"
                   />
                 </FormControl>
               </VStack>
@@ -1416,7 +1309,7 @@ export default function MarketplacePage() {
         </ModalContent>
       </Modal>
 
-      {/* Listing Details Modal (Admin Only) */}
+      {/* Listing Details Modal */}
       <Modal isOpen={isDetailOpen} onClose={onDetailClose} size="2xl">
         <ModalOverlay />
         <ModalContent>
@@ -1594,6 +1487,19 @@ export default function MarketplacePage() {
               </VStack>
             )}
           </ModalBody>
+          <ModalFooter>
+            <Button 
+              colorScheme="blue" 
+              mr={3} 
+              onClick={handleViewTokenHistory}
+              isDisabled={!detailListingJobID && (!detailListing?.tokens || detailListing.tokens.length === 0)}
+            >
+              View History of These Tokens
+            </Button>
+            <Button variant="outline" onClick={onDetailClose}>
+              Close
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Box>

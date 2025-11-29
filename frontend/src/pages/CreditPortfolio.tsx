@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useContext } from "react";
 import { Context } from "../context/authContext";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Heading,
@@ -107,118 +108,52 @@ export default function CreditPortfolioPage() {
 
   const { user } = useContext<any>(Context);
   const toast = useToast();
+  const navigate = useNavigate();
   const [groupedTokens, setGroupedTokens] = useState<GroupedToken[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
-  const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [selectedOperatorFilter, setSelectedOperatorFilter] = useState<string>("all");
-  const [confirmText, setConfirmText] = useState("");
-
-  // Listing modal state
-  const { 
-    isOpen: isListingOpen, 
-    onOpen: onListingOpen, 
-    onClose: onListingClose 
-  } = useDisclosure();
-  const [selectedGroupedToken, setSelectedGroupedToken] = useState<GroupedToken | null>(null);
-  const [listingPrice, setListingPrice] = useState<string>("");
-  const [isCreatingListing, setIsCreatingListing] = useState(false);
-  const [fetchingTokens, setFetchingTokens] = useState(false);
-  const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
+  const [myOperatorID, setMyOperatorID] = useState<number | null>(null);
+  const [selectedOperatorFilter, setSelectedOperatorFilter] = useState("all");
+  
+  // Track which jobs have tokens on marketplace
+  const [jobsWithTokensOnMarketplace, setJobsWithTokensOnMarketplace] = useState<Set<number>>(new Set());
 
   // Detail drawer state
-  const { 
-    isOpen: isDetailOpen, 
-    onOpen: onDetailOpen, 
-    onClose: onDetailClose 
-  } = useDisclosure();
+  const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
+  const [selectedGroupedToken, setSelectedGroupedToken] = useState<GroupedToken | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobTokens, setJobTokens] = useState<Token[]>([]);
   const [telemetryData, setTelemetryData] = useState<TelemetryData[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // Track which job IDs have tokens on marketplace
-  const [jobsWithTokensOnMarketplace, setJobsWithTokensOnMarketplace] = useState<Set<number>>(new Set());
+  // Listing modal state
+  const { isOpen: isListingOpen, onOpen: onListingOpen, onClose: onListingClose } = useDisclosure();
+  const [listingPrice, setListingPrice] = useState("");
+  const [confirmText, setConfirmText] = useState("");
+  const [isCreatingListing, setIsCreatingListing] = useState(false);
+  const [availableTokens, setAvailableTokens] = useState<Token[]>([]);
+  const [fetchingTokens, setFetchingTokens] = useState(false);
 
-  // Check tokens on marketplace - modified for admin view
-  const checkTokensOnMarketplace = async (operatorIDs: number[]) => {
-    try {
-      const jobIDsOnMarketplace = new Set<number>();
-      
-      // Fetch tokens for each operator
-      for (const operatorID of operatorIDs) {
-        try {
-          const tokensRes = await fetch(`${API}/tokens/owner/${operatorID}`);
-          if (!tokensRes.ok) continue;
-          
-          const tokens: Token[] = await tokensRes.json();
-          
-          // Find job IDs that have tokens with "On The Marketplace" status
-          tokens.forEach(token => {
-            if (token.status === "On The Marketplace") {
-              jobIDsOnMarketplace.add(token.jobID);
-            }
-          });
-        } catch (error) {
-          console.error(`Error checking marketplace tokens for operator ${operatorID}:`, error);
-        }
+  // Get unique operators for dropdown
+  const uniqueOperators = useMemo(() => {
+    if (!isAdmin) return [];
+    
+    const operatorMap = new Map<number, string>();
+    groupedTokens.forEach(g => {
+      if (g.ownerID) {
+        const user = users.find(u => u.userID === g.ownerID);
+        operatorMap.set(g.ownerID, user?.organizationName || user?.email || `Operator ${g.ownerID}`);
       }
-      
-      setJobsWithTokensOnMarketplace(jobIDsOnMarketplace);
-    } catch (error) {
-      console.error("Error checking marketplace tokens:", error);
-    }
-  };
-
-  // Client-side grouping function for admin view
-  const groupTokensOnFrontend = (tokens: Token[]): GroupedToken[] => {
-    const groups: Record<string, Token[]> = {};
-
-    // Group by ownerID, jobID, and status
-    for (const token of tokens) {
-      const key = `${token.ownerID}_${token.jobID}_${token.status}`;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(token);
-    }
-
-    // Build the result summary per group
-    const groupedTokens = Object.entries(groups).map(([key, tokens]) => {
-      const [ownerID, jobID, status] = key.split('_');
-
-      // Sum creditProportions (totalCredits)
-      const totalCredits = tokens.reduce((sum, t) => sum + (t.creditProportion || 0), 0);
-
-      // Use consistent fields from first token in group
-      const quality = tokens[0].quality;
-      const mintedAt = tokens[0].mintedAt || null;
-
-      // RetiredAt = latest retiredAt among tokens, if any are retired
-      const retiredDates = tokens
-        .map(t => t.retiredAt)
-        .filter(date => date !== null);
-      const retiredAt = retiredDates.length
-        ? retiredDates.sort().slice(-1)[0] // get latest
-        : null;
-
-      return {
-        jobID: Number(jobID),
-        status,
-        totalCredits,
-        quality,
-        mintedAt,
-        retiredAt,
-        ownerID: Number(ownerID),
-      };
     });
+    
+    return Array.from(operatorMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [groupedTokens, users, isAdmin]);
 
-    return groupedTokens;
-  };
-
-  // Fetch grouped tokens - modified for admin view
+  // Fetch grouped tokens
   const fetchGroupedTokens = async () => {
     if (!user) {
       setLoading(false);
@@ -235,66 +170,99 @@ export default function CreditPortfolioPage() {
       const me =
         allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
         allUsers.find(
-          (u) => u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()
+          (u) =>
+            u.email &&
+            user.email &&
+            u.email.toLowerCase() === user.email.toLowerCase()
         );
 
-      if (!me) throw new Error("No matching user in the DB");
-
-      const operatorID = me.userID;
-      setMyOperatorID(operatorID);
-
-      // Check if user is admin (case/whitespace-insensitive)
-      const role = (me.role || "").trim().toLowerCase();
-      const userIsAdmin = role === "slb admin";
-      setIsAdmin(userIsAdmin);
-
-      let groupedData: GroupedToken[] = [];
-
-      if (userIsAdmin) {
-        // For admins, fetch ALL tokens and group them on frontend
-        console.log("Admin user detected - fetching all tokens");
-        
-        const res = await fetch(`${API}/tokens`);
-        if (!res.ok) throw new Error(`Failed to fetch all tokens (${res.status})`);
-        
-        const allTokens: Token[] = await res.json();
-        console.log(`Fetched ${allTokens.length} tokens for admin view`);
-        
-        // Group tokens on the frontend
-        groupedData = groupTokensOnFrontend(allTokens);
-        
-        // Get all unique owner IDs for marketplace check
-        const uniqueOwnerIDs = Array.from(new Set(allTokens.map(t => t.ownerID)));
-        await checkTokensOnMarketplace(uniqueOwnerIDs);
-      } else {
-        // For regular users, fetch their grouped tokens
-        const endpoint = `${API}/tokens/grouped/${operatorID}`;
-        console.log("Fetching grouped tokens:", endpoint);
-        const res = await fetch(endpoint);
-
-        if (!res.ok) throw new Error(`Grouped tokens fetch failed (${res.status})`);
-
-        groupedData = await res.json();
-        // Add ownerID to each token for consistency
-        groupedData = groupedData.map((t: GroupedToken) => ({ ...t, ownerID: operatorID }));
-        
-        // Check marketplace status for this operator
-        await checkTokensOnMarketplace([operatorID]);
+      if (!me) {
+        setErr("User not found");
+        setLoading(false);
+        return;
       }
 
-      console.log(`Grouped tokens received (${userIsAdmin ? 'Admin' : 'User'}):`, groupedData);
+      const userRole = me.role?.toLowerCase();
+      const userIsAdmin = userRole === "slb admin" || userRole === "slb_admin";
+      setIsAdmin(userIsAdmin);
+      setMyOperatorID(me.userID);
+
+      // Fetch grouped tokens
+      let groupedData: GroupedToken[] = [];
+      
+      if (userIsAdmin) {
+        // Admin sees all tokens grouped by owner
+        const allTokensRes = await fetch(`${API}/tokens`);
+        const allTokens: Token[] = await allTokensRes.json();
+        
+        // Group by jobID AND ownerID for admin
+        const grouped = new Map<string, GroupedToken>();
+        allTokens.forEach(token => {
+          const key = `${token.jobID}-${token.ownerID}`;
+          if (!grouped.has(key)) {
+            grouped.set(key, {
+              jobID: token.jobID,
+              status: token.status,
+              totalCredits: 0,
+              quality: token.quality,
+              mintedAt: token.mintedAt,
+              retiredAt: token.retiredAt,
+              ownerID: token.ownerID,
+            });
+          }
+          const g = grouped.get(key)!;
+          g.totalCredits += token.creditProportion;
+        });
+        
+        groupedData = Array.from(grouped.values());
+      } else {
+        // Regular user sees only their tokens
+        const res = await fetch(`${API}/tokens/grouped/${me.userID}`);
+        if (res.ok) {
+          groupedData = await res.json();
+        }
+      }
+
       setGroupedTokens(groupedData);
+      
+      // Check which jobs have tokens on marketplace
+      await checkMarketplaceStatus(groupedData);
+      
     } catch (e: any) {
-      setErr(e.message || "Failed to load grouped tokens");
-      toast({
-        title: "Error",
-        description: e.message || "Failed to load grouped tokens",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      setErr(e.message || "Failed to load tokens");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Check marketplace status for jobs
+  const checkMarketplaceStatus = async (tokens: GroupedToken[]) => {
+    try {
+      const listingsRes = await fetch(`${API}/listings/active`);
+      if (listingsRes.ok) {
+        const listings = await listingsRes.json();
+        const jobsOnMarket = new Set<number>();
+        
+        // Get all token IDs that are on marketplace
+        for (const listing of listings) {
+          if (listing.tokens && listing.tokens.length > 0) {
+            // For each listing, find which jobs those tokens belong to
+            for (const tokenID of listing.tokens) {
+              const tokenRes = await fetch(`${API}/tokens/${tokenID}`);
+              if (tokenRes.ok) {
+                const token = await tokenRes.json();
+                if (token && token.jobID) {
+                  jobsOnMarket.add(token.jobID);
+                }
+              }
+            }
+          }
+        }
+        
+        setJobsWithTokensOnMarketplace(jobsOnMarket);
+      }
+    } catch (e) {
+      console.error("Error checking marketplace status:", e);
     }
   };
 
@@ -302,79 +270,36 @@ export default function CreditPortfolioPage() {
     fetchGroupedTokens();
   }, [API, user]);
 
-  // Get operator name from users array
-  const getOperatorName = (ownerID: number | null | undefined) => {
-    if (!ownerID) return "Unassigned";
-    const operator = users.find((u) => u.userID === ownerID);
-    return operator?.organizationName || operator?.email || `Operator ${ownerID}`;
-  };
+  // Filtering
+  const filtered = useMemo(
+    () =>
+      groupedTokens.filter((g) => {
+        const matchesQ =
+          !q ||
+          String(g.jobID).includes(q) ||
+          String(g.totalCredits).includes(q);
+        const matchesStatus = status === "all" || g.status === status;
+        const matchesOperator = 
+          !isAdmin || 
+          selectedOperatorFilter === "all" || 
+          String(g.ownerID) === selectedOperatorFilter;
+        return matchesQ && matchesStatus && matchesOperator;
+      }),
+    [groupedTokens, q, status, isAdmin, selectedOperatorFilter]
+  );
 
-  // Get unique operators for filter dropdown (admin only)
-  const uniqueOperators = useMemo(() => {
-    if (!isAdmin) return [];
-    
-    const operatorSet = new Set<number>();
-    groupedTokens.forEach(g => {
-      if (g.ownerID) operatorSet.add(g.ownerID);
-    });
-    
-    return Array.from(operatorSet).map(id => ({
-      id,
-      name: getOperatorName(id)
-    })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [groupedTokens, users, isAdmin]);
-
-  // Filtering - modified for admin view
-  const filtered = useMemo(() => {
-    const result = groupedTokens.filter((g) => {
-      const matchesStatus = status === "all" || g.status === status;
-      const matchesQ =
-        !q ||
-        String(g.jobID).includes(q) ||
-        String(g.totalCredits).includes(q) ||
-        String(g.quality).includes(q) ||
-        g.status.toLowerCase().includes(q.toLowerCase()) ||
-        (isAdmin && getOperatorName(g.ownerID).toLowerCase().includes(q.toLowerCase()));
-      
-      // Add operator filter for admin view
-      const matchesOperator = 
-        !isAdmin || 
-        selectedOperatorFilter === "all" || 
-        String(g.ownerID) === selectedOperatorFilter;
-
-      return matchesStatus && matchesQ && matchesOperator;
-    });
-
-    console.log("Filtered grouped tokens:", result.length);
-    return result;
-  }, [groupedTokens, q, status, selectedOperatorFilter, isAdmin]);
-
-  // Calculate stats by summing token counts (totalCredits)
-  const stats = useMemo(() => {
-    const total = groupedTokens.reduce((sum, g) => sum + (g.totalCredits || 0), 0);
-    const minted = groupedTokens
-      .filter((g) => g.status === "Minted")
-      .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
-    const marketplace = groupedTokens
-      .filter((g) => g.status === "On The Marketplace")
-      .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
-    const retired = groupedTokens
-      .filter((g) => g.status === "Retired")
-      .reduce((sum, g) => sum + (g.totalCredits || 0), 0);
-
-    return { total, minted, marketplace, retired };
-  }, [groupedTokens]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusColor = (s: string) => {
+    switch (s) {
+      case "Ready for Minting":
+        return "yellow";
       case "Minted":
-        return "purple";
-      case "On The Marketplace":
         return "green";
+      case "On The Marketplace":
+        return "blue";
       case "Retired":
         return "gray";
       default:
-        return "yellow";
+        return "gray";
     }
   };
 
@@ -385,121 +310,85 @@ export default function CreditPortfolioPage() {
     return "red";
   };
 
-  // Handle opening detail drawer - modified for admin view
-  const handleViewDetails = async (e: React.MouseEvent, groupedToken: GroupedToken) => {
-    e.preventDefault();
+  const getOperatorName = (ownerID: number) => {
+    const user = users.find(u => u.userID === ownerID);
+    return user?.organizationName || user?.email || `Operator ${ownerID}`;
+  };
+
+  // Handle viewing details
+  const handleViewDetails = async (e: React.MouseEvent, g: GroupedToken) => {
     e.stopPropagation();
-    
+    setSelectedGroupedToken(g);
     setLoadingDetails(true);
     onDetailOpen();
-    
+
     try {
       // Fetch job details
-      const jobRes = await fetch(`${API}/jobs/${groupedToken.jobID}`);
-      if (!jobRes.ok) throw new Error("Failed to fetch job details");
-      const jobData: Job = await jobRes.json();
-      setSelectedJob(jobData);
+      const jobRes = await fetch(`${API}/jobs/${g.jobID}`);
+      if (jobRes.ok) {
+        const job = await jobRes.json();
+        setSelectedJob(job);
+      }
 
-      // Fetch tokens for this job from the specific owner
-      const operatorToFetch = groupedToken.ownerID || myOperatorID;
-      if (operatorToFetch) {
-        const tokensRes = await fetch(`${API}/tokens/owner/${operatorToFetch}`);
-        if (tokensRes.ok) {
-          const allTokens: Token[] = await tokensRes.json();
-          const filteredTokens = allTokens.filter(t => 
-            t.jobID === groupedToken.jobID && 
-            t.status === groupedToken.status // Match the status from grouped token
-          );
-          setJobTokens(filteredTokens);
+      // Fetch tokens for this job
+      const tokensRes = await fetch(`${API}/tokens`);
+      if (tokensRes.ok) {
+        const allTokens: Token[] = await tokensRes.json();
+        const jobTokensFiltered = allTokens.filter(t => t.jobID === g.jobID);
+        // If admin, filter by owner too
+        if (isAdmin && g.ownerID) {
+          setJobTokens(jobTokensFiltered.filter(t => t.ownerID === g.ownerID));
         } else {
-          setJobTokens([]);
+          setJobTokens(jobTokensFiltered.filter(t => t.ownerID === myOperatorID));
         }
-      } else {
-        setJobTokens([]);
       }
 
-      // Fetch telemetry data for this job
-      const telemetryRes = await fetch(`${API}/telemetrydata/job/${groupedToken.jobID}`);
+      // Fetch telemetry data
+      const telemetryRes = await fetch(`${API}/telemetrydata/job/${g.jobID}`);
       if (telemetryRes.ok) {
-        const telemetryDataResponse: TelemetryData[] = await telemetryRes.json();
-        setTelemetryData(telemetryDataResponse);
-      } else {
-        setTelemetryData([]);
+        const telemetry = await telemetryRes.json();
+        setTelemetryData(telemetry);
       }
-
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load details",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      console.error("Error loading details:", error);
+    } catch (e) {
+      console.error("Error fetching details:", e);
     } finally {
       setLoadingDetails(false);
     }
   };
 
-  // Handle opening the listing modal - only for non-admin users
-  const handleListForSale = async (e: React.MouseEvent, groupedToken: GroupedToken) => {
-    e.preventDefault();
+  // Handle listing for sale
+  const handleListForSale = async (e: React.MouseEvent, g: GroupedToken) => {
     e.stopPropagation();
-    
-    if (isAdmin) {
-      toast({
-        title: "Admin View",
-        description: "Admins cannot list tokens for sale. Please switch to a regular user account.",
-        status: "info",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-    
-    setSelectedGroupedToken(groupedToken);
+    setSelectedGroupedToken(g);
     setListingPrice("");
     setConfirmText("");
-    setAvailableTokens([]);
-    onListingOpen();
-    
-    // Fetch tokens for this operator and filter for this job
     setFetchingTokens(true);
+    onListingOpen();
+
     try {
-      const tokensRes = await fetch(`${API}/tokens/owner/${myOperatorID}`);
-      if (!tokensRes.ok) {
-        throw new Error("Failed to fetch tokens");
+      // Fetch available tokens for this job
+      const tokensRes = await fetch(`${API}/tokens`);
+      if (tokensRes.ok) {
+        const allTokens: Token[] = await tokensRes.json();
+        const mintedTokens = allTokens.filter(
+          t => t.jobID === g.jobID && 
+               t.ownerID === myOperatorID && 
+               t.status === "Minted"
+        );
+        setAvailableTokens(mintedTokens);
       }
-      
-      const allTokens: Token[] = await tokensRes.json();
-      
-      // Filter tokens for this specific job that are available (Minted status)
-      const jobTokens = allTokens.filter(
-        token => token.jobID === groupedToken.jobID && token.status === "Minted"
-      );
-      
-      setAvailableTokens(jobTokens);
-      
-      if (jobTokens.length === 0) {
-        toast({
-          title: "No Tokens Available",
-          description: "There are no minted tokens available for this job. Please ensure tokens have been minted first.",
-          status: "warning",
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch tokens",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      console.error("Error fetching tokens:", error);
+    } catch (e) {
+      console.error("Error fetching tokens:", e);
+      setAvailableTokens([]);
     } finally {
       setFetchingTokens(false);
+    }
+  };
+
+  // Navigate to token history page
+  const handleViewTokenHistory = () => {
+    if (selectedGroupedToken) {
+      navigate(`/token-history/${selectedGroupedToken.jobID}`);
     }
   };
 
@@ -997,7 +886,15 @@ export default function CreditPortfolioPage() {
           </DrawerBody>
 
           <DrawerFooter>
-            <Button variant="outline" mr={3} onClick={onDetailClose}>
+            <Button 
+              colorScheme="blue" 
+              mr={3} 
+              onClick={handleViewTokenHistory}
+              isDisabled={!selectedGroupedToken}
+            >
+              View History of These Tokens
+            </Button>
+            <Button variant="outline" onClick={onDetailClose}>
               Close
             </Button>
           </DrawerFooter>

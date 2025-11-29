@@ -13,6 +13,7 @@ import NavBar from "./components/NavBar";
 import JobsPage from "./pages/Jobs";
 import CreditPortfolioPage from "./pages/CreditPortfolio";
 import MarketplacePage from "./pages/Marketplace";
+import TokenHistoryPage from "./pages/TokenHistory";
 
 function App() {
   return (
@@ -127,6 +128,25 @@ function App() {
           <Protected>
             <NavBar />
             <MarketplacePage />
+          </Protected>
+        }
+      />
+      {/* Token History Routes */}
+      <Route
+        path="/token-history/:jobId"
+        element={
+          <Protected>
+            <NavBar />
+            <TokenHistoryPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/token-history"
+        element={
+          <Protected>
+            <NavBar />
+            <TokenHistoryPage />
           </Protected>
         }
       />
