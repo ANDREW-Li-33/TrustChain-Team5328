@@ -14,6 +14,7 @@ import JobsPage from "./pages/Jobs";
 import CreditPortfolioPage from "./pages/CreditPortfolio";
 import MarketplacePage from "./pages/Marketplace";
 import TokenHistoryPage from "./pages/TokenHistory";
+import AdminActions from "./pages/AdminActions";
 
 function App() {
   return (
@@ -147,6 +148,15 @@ function App() {
           <Protected>
             <NavBar />
             <TokenHistoryPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/adminaction"
+        element={
+          <Protected>
+            <NavBar />
+            <AdminActions />
           </Protected>
         }
       />
