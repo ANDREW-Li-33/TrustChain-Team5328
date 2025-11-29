@@ -1,5 +1,5 @@
 import express from 'express';
-import { addToken, getTokens, getTokenByID, getTokensByOwnerID, updateOwnerOfToken, getTokensGroupedByOwner, updateTokenStatus} from '../database/tokens';
+import { addToken, getTokens, getTokenByID, getTokensByOwnerID, updateOwnerOfToken, getTokensGroupedByOwner, updateTokenStatus, retireToken} from '../database/tokens';
 
 const router = express.Router();
 
@@ -114,6 +114,71 @@ router.patch('/:id/owner', async (req, res) => {
     res.status(200).json({ message: 'Token ownership updated', data: updatedToken });
   } catch (error) {
     console.error('Error in PATCH /tokens/:id/owner:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+router.post('/retire', async (req, res) => {
+  try {
+    const { tokenIDs, ownerID } = req.body;
+
+    if (!tokenIDs || !Array.isArray(tokenIDs) || tokenIDs.length === 0) {
+      return res.status(400).json({ error: 'Missing or invalid tokenIDs array' });
+    }
+
+    if (!ownerID) {
+      return res.status(400).json({ error: 'Missing ownerID field' });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const tokenID of tokenIDs) {
+      const token = await getTokenByID(tokenID);
+      
+      if (!token) {
+        errors.push({ tokenID, error: 'Token not found' });
+        continue;
+      }
+
+      if (token.ownerID !== ownerID) {
+        errors.push({ tokenID, error: 'Token does not belong to this owner' });
+        continue;
+      }
+
+      if (token.status === 'Retired') {
+        errors.push({ tokenID, error: 'Token is already retired' });
+        continue;
+      }
+
+      if (token.status === 'On The Marketplace') {
+        errors.push({ tokenID, error: 'Cannot retire token that is on the marketplace' });
+        continue;
+      }
+
+      const retiredToken = await retireToken(tokenID, ownerID);
+      if (retiredToken) {
+        results.push({ tokenID, success: true, data: retiredToken });
+      } else {
+        errors.push({ tokenID, error: 'Failed to retire token' });
+      }
+    }
+
+    if (errors.length > 0 && results.length === 0) {
+      return res.status(400).json({ 
+        error: 'Failed to retire any tokens', 
+        details: errors 
+      });
+    }
+
+    res.status(200).json({ 
+      message: `Successfully retired ${results.length} token(s)`,
+      retired: results,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('Error in POST /tokens/retire:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
