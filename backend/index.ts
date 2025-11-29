@@ -8,6 +8,8 @@ import telemetryDataRoutes from "./routes/telemetrydata";
 import tokenRoutes from "./routes/tokens";
 import listingRoutes from "./routes/listings";
 import tokenEventRoutes from "./routes/tokenEventsRoutes";
+import systemStatusRoutes from "./routes/systemstatus";
+import governanceLogsRoutes from "./routes/governancelogs";
 
 
 dotenv.config();
@@ -25,6 +27,8 @@ app.use("/telemetrydata", telemetryDataRoutes);
 app.use("/tokens", tokenRoutes);
 app.use("/listings", listingRoutes);
 app.use("/tokenevents", tokenEventRoutes);
+app.use("/systemstatus", systemStatusRoutes);
+app.use("/governancelogs", governanceLogsRoutes);
 console.log("User routes mounted at /users");
 
 
