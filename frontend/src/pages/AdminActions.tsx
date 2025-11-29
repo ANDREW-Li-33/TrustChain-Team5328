@@ -25,7 +25,22 @@ import {
   TableContainer,
   useColorModeValue,
   useToast,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  Input,
+  FormControl,
+  FormLabel,
+  InputGroup,
+  InputRightElement,
+  IconButton,
 } from "@chakra-ui/react";
+import { ViewIcon, ViewOffIcon, WarningTwoIcon } from "@chakra-ui/icons";
 
 type SystemStatus = {
   minting: boolean;
@@ -38,6 +53,8 @@ type GovernanceLog = {
   Action: string;
   Timestamp: string;
 };
+
+type ConfirmAction = "minting" | "transfer" | "retire" | null;
 
 export default function AdminActions() {
   const API =
@@ -55,6 +72,18 @@ export default function AdminActions() {
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [logsError, setLogsError] = useState<string | null>(null);
+
+  const [togglingMinting, setTogglingMinting] = useState(false);
+  const [togglingTransfer, setTogglingTransfer] = useState(false);
+  const [togglingRetire, setTogglingRetire] = useState(false);
+
+  // Confirmation modal state
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const toast = useToast();
   const bgColor = useColorModeValue("white", "gray.700");
@@ -129,113 +158,120 @@ export default function AdminActions() {
     fetchGovernanceLogs();
   }, []);
 
-  const [togglingMinting, setTogglingMinting] = useState(false);
-  const [togglingTransfer, setTogglingTransfer] = useState(false);
-  const [togglingRetire, setTogglingRetire] = useState(false);
+  // Open confirmation modal
+  const openConfirmModal = (action: ConfirmAction) => {
+    setConfirmAction(action);
+    setAdminPassword("");
+    setPasswordError(null);
+    setShowPassword(false);
+    onOpen();
+  };
 
-  // Button handlers
-  const handleToggleMinting = async () => {
-    setTogglingMinting(true);
-    try {
-      const res = await fetch(`${API}/systemstatus/minting/toggle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSystemStatus((prev) => ({ ...prev, minting: data.active }));
-        toast({
-          title: data.active ? "Minting Activated" : "Minting Paused",
-          description: data.message,
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-        fetchGovernanceLogs();
-      } else {
-        throw new Error("Failed to toggle minting");
+  // Close confirmation modal
+  const closeConfirmModal = () => {
+    setConfirmAction(null);
+    setAdminPassword("");
+    setPasswordError(null);
+    setShowPassword(false);
+    onClose();
+  };
+
+  // Get warning message based on action
+  const getWarningMessage = () => {
+    if (!confirmAction) return "";
+
+    const isCurrentlyActive = systemStatus[confirmAction];
+    const actionName = confirmAction === "transfer" ? "sales" : confirmAction;
+
+    if (isCurrentlyActive) {
+      switch (confirmAction) {
+        case "minting":
+          return "Pausing minting will stop all new carbon credit tokens from being created. Verified jobs will be queued and minted once minting is resumed. This action will be logged in the governance history.";
+        case "transfer":
+          return "Pausing sales will prevent all token purchases and transfers on the marketplace. Existing listings will remain but cannot be purchased until sales are resumed. This action will be logged in the governance history.";
+        case "retire":
+          return "Pausing retiring will prevent token owners from retiring their carbon credits. This action will be logged in the governance history.";
+        default:
+          return "";
       }
-    } catch (err) {
-      console.error("Error toggling minting:", err);
-      toast({
-        title: "Error",
-        description: "Failed to toggle minting status",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setTogglingMinting(false);
+    } else {
+      switch (confirmAction) {
+        case "minting":
+          return "Resuming minting will allow new carbon credit tokens to be created from verified jobs. Any queued minting requests will be processed. This action will be logged in the governance history.";
+        case "transfer":
+          return "Resuming sales will allow token purchases and transfers on the marketplace. This action will be logged in the governance history.";
+        case "retire":
+          return "Resuming retiring will allow token owners to retire their carbon credits. This action will be logged in the governance history.";
+        default:
+          return "";
+      }
     }
   };
 
-  const handleToggleTransfer = async () => {
-    setTogglingTransfer(true);
-    try {
-      const res = await fetch(`${API}/systemstatus/transfer/toggle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSystemStatus((prev) => ({ ...prev, transfer: data.active }));
-        toast({
-          title: data.active ? "Sales Activated" : "Sales Paused",
-          description: data.message,
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-        fetchGovernanceLogs();
-      } else {
-        throw new Error("Failed to toggle transfer");
-      }
-    } catch (err) {
-      console.error("Error toggling transfer:", err);
-      toast({
-        title: "Error",
-        description: "Failed to toggle sales status",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setTogglingTransfer(false);
-    }
+  // Get action title
+  const getActionTitle = () => {
+    if (!confirmAction) return "";
+
+    const isCurrentlyActive = systemStatus[confirmAction];
+    const actionName = confirmAction === "transfer" ? "Sales" : confirmAction.charAt(0).toUpperCase() + confirmAction.slice(1);
+
+    return isCurrentlyActive ? `Pause ${actionName}` : `Resume ${actionName}`;
   };
 
-  const handleToggleRetire = async () => {
-    setTogglingRetire(true);
+  // Handle confirmed action
+  const handleConfirmedAction = async () => {
+    if (!confirmAction || !adminPassword) {
+      setPasswordError("Please enter the admin password");
+      return;
+    }
+
+    setIsConfirming(true);
+    setPasswordError(null);
+
+    const setToggling = {
+      minting: setTogglingMinting,
+      transfer: setTogglingTransfer,
+      retire: setTogglingRetire,
+    }[confirmAction];
+
+    setToggling(true);
+
     try {
-      const res = await fetch(`${API}/systemstatus/retire/toggle`, {
+      const res = await fetch(`${API}/systemstatus/${confirmAction}/toggle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
       });
+
       if (res.ok) {
         const data = await res.json();
-        setSystemStatus((prev) => ({ ...prev, retire: data.active }));
+        setSystemStatus((prev) => ({ ...prev, [confirmAction]: data.active }));
+
+        const actionName = confirmAction === "transfer" ? "Sales" : confirmAction.charAt(0).toUpperCase() + confirmAction.slice(1);
         toast({
-          title: data.active ? "Retiring Activated" : "Retiring Paused",
+          title: data.active ? `${actionName} Activated` : `${actionName} Paused`,
           description: data.message,
           status: "success",
           duration: 3000,
           isClosable: true,
         });
+
         fetchGovernanceLogs();
+        closeConfirmModal();
       } else {
-        throw new Error("Failed to toggle retire");
+        const errorData = await res.json();
+        if (res.status === 401) {
+          setPasswordError("Invalid admin password. Please try again.");
+        } else {
+          setPasswordError(errorData.error || "Failed to perform action");
+        }
       }
     } catch (err) {
-      console.error("Error toggling retire:", err);
-      toast({
-        title: "Error",
-        description: "Failed to toggle retiring status",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      console.error(`Error toggling ${confirmAction}:`, err);
+      setPasswordError("An error occurred. Please try again.");
     } finally {
-      setTogglingRetire(false);
+      setIsConfirming(false);
+      setToggling(false);
     }
   };
 
@@ -249,12 +285,14 @@ export default function AdminActions() {
 
   const getActionColor = (action: string) => {
     const lowerAction = action.toLowerCase();
+    console.log(lowerAction);
+    if (lowerAction.includes("deactivated") || lowerAction.includes("pause")) {
+        return "red";
+      }
     if (lowerAction.includes("activated") || lowerAction.includes("resume")) {
       return "green";
     }
-    if (lowerAction.includes("deactivated") || lowerAction.includes("pause")) {
-      return "red";
-    }
+
     return "gray";
   };
 
@@ -314,7 +352,7 @@ export default function AdminActions() {
                         <Button
                           colorScheme={systemStatus.minting ? "red" : "green"}
                           w="100%"
-                          onClick={handleToggleMinting}
+                          onClick={() => openConfirmModal("minting")}
                           isLoading={togglingMinting}
                           loadingText={systemStatus.minting ? "Pausing..." : "Resuming..."}
                         >
@@ -347,7 +385,7 @@ export default function AdminActions() {
                         <Button
                           colorScheme={systemStatus.transfer ? "red" : "green"}
                           w="100%"
-                          onClick={handleToggleTransfer}
+                          onClick={() => openConfirmModal("transfer")}
                           isLoading={togglingTransfer}
                           loadingText={systemStatus.transfer ? "Pausing..." : "Resuming..."}
                         >
@@ -380,7 +418,7 @@ export default function AdminActions() {
                         <Button
                           colorScheme={systemStatus.retire ? "red" : "green"}
                           w="100%"
-                          onClick={handleToggleRetire}
+                          onClick={() => openConfirmModal("retire")}
                           isLoading={togglingRetire}
                           loadingText={systemStatus.retire ? "Pausing..." : "Resuming..."}
                         >
@@ -450,6 +488,82 @@ export default function AdminActions() {
           </CardBody>
         </Card>
       </VStack>
+
+      {/* Confirmation Modal */}
+      <Modal isOpen={isOpen} onClose={closeConfirmModal} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <HStack>
+              <WarningTwoIcon color="orange.500" />
+              <Text>{getActionTitle()}</Text>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4} align="stretch">
+              {/* Warning Message */}
+              <Alert
+                status={systemStatus[confirmAction!] ? "warning" : "info"}
+                borderRadius="md"
+              >
+                <AlertIcon />
+                <Text fontSize="sm">{getWarningMessage()}</Text>
+              </Alert>
+
+              {/* Password Input */}
+              <FormControl isRequired isInvalid={!!passwordError}>
+                <FormLabel>Admin Password</FormLabel>
+                <InputGroup>
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter admin password"
+                    value={adminPassword}
+                    onChange={(e) => {
+                      setAdminPassword(e.target.value);
+                      setPasswordError(null);
+                    }}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        handleConfirmedAction();
+                      }
+                    }}
+                  />
+                  <InputRightElement>
+                    <IconButton
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPassword(!showPassword)}
+                    />
+                  </InputRightElement>
+                </InputGroup>
+                {passwordError && (
+                  <Text color="red.500" fontSize="sm" mt={1}>
+                    {passwordError}
+                  </Text>
+                )}
+              </FormControl>
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={closeConfirmModal}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme={systemStatus[confirmAction!] ? "red" : "green"}
+              onClick={handleConfirmedAction}
+              isLoading={isConfirming}
+              loadingText="Confirming..."
+              isDisabled={!adminPassword}
+            >
+              {getActionTitle()}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Container>
   );
 }

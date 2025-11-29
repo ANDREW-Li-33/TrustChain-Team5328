@@ -13,6 +13,22 @@ import {
 
 const router = express.Router();
 
+const ADMIN_PASSWORD = process.env.ADMIN_ACTION_PASSWORD;
+
+const verifyAdminPassword = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const { password } = req.body;
+  
+  if (!password) {
+    return res.status(400).json({ error: 'Admin password is required' });
+  }
+  
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  next();
+};
+
 
 router.get('/minting', async (req, res) => {
   try {
@@ -24,7 +40,7 @@ router.get('/minting', async (req, res) => {
   }
 });
 
-router.post('/minting/activate', async (req, res) => {
+router.post('/minting/activate', verifyAdminPassword, async (req, res) => {
   try {
     const result = await setMintingActive();
     if (result) {
@@ -38,7 +54,7 @@ router.post('/minting/activate', async (req, res) => {
   }
 });
 
-router.post('/minting/deactivate', async (req, res) => {
+router.post('/minting/deactivate', verifyAdminPassword, async (req, res) => {
   try {
     const result = await setMintingInactive();
     res.status(200).json({ message: 'Minting deactivated successfully', active: false });
@@ -48,7 +64,7 @@ router.post('/minting/deactivate', async (req, res) => {
   }
 });
 
-router.post('/minting/toggle', async (req, res) => {
+router.post('/minting/toggle', verifyAdminPassword, async (req, res) => {
   try {
     const currentStatus = await getMintingStatus();
     if (currentStatus) {
@@ -75,7 +91,7 @@ router.get('/transfer', async (req, res) => {
   }
 });
 
-router.post('/transfer/activate', async (req, res) => {
+router.post('/transfer/activate', verifyAdminPassword, async (req, res) => {
   try {
     const result = await setTransferActive();
     if (result) {
@@ -89,7 +105,7 @@ router.post('/transfer/activate', async (req, res) => {
   }
 });
 
-router.post('/transfer/deactivate', async (req, res) => {
+router.post('/transfer/deactivate', verifyAdminPassword, async (req, res) => {
   try {
     const result = await setTransferInactive();
     if (result) {
@@ -103,7 +119,7 @@ router.post('/transfer/deactivate', async (req, res) => {
   }
 });
 
-router.post('/transfer/toggle', async (req, res) => {
+router.post('/transfer/toggle', verifyAdminPassword, async (req, res) => {
   try {
     const currentStatus = await getTransferStatus();
     if (currentStatus) {
@@ -130,7 +146,7 @@ router.get('/retire', async (req, res) => {
   }
 });
 
-router.post('/retire/activate', async (req, res) => {
+router.post('/retire/activate', verifyAdminPassword, async (req, res) => {
   try {
     const result = await setRetireActive();
     if (result) {
@@ -144,7 +160,7 @@ router.post('/retire/activate', async (req, res) => {
   }
 });
 
-router.post('/retire/deactivate', async (req, res) => {
+router.post('/retire/deactivate', verifyAdminPassword, async (req, res) => {
   try {
     const result = await setRetireInactive();
     if (result) {
@@ -158,7 +174,7 @@ router.post('/retire/deactivate', async (req, res) => {
   }
 });
 
-router.post('/retire/toggle', async (req, res) => {
+router.post('/retire/toggle', verifyAdminPassword, async (req, res) => {
   try {
     const currentStatus = await getRetireStatus();
     if (currentStatus) {
