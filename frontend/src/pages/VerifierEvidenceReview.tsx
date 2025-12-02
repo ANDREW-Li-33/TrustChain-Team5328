@@ -103,7 +103,7 @@ export default function VerifierEvidenceReview() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [quality, setQuality] = useState<number>(0);
+  const [quality, setQuality] = useState<string>("");
   const [denialReason, setDenialReason] = useState<string>("");
 
   useEffect(() => {
@@ -161,7 +161,7 @@ export default function VerifierEvidenceReview() {
         body: JSON.stringify({
           status: "Approved",
           verificationTimestamp: new Date().toISOString(),
-          quality: quality,
+          quality: Number(quality),
         }),
       });
 
@@ -656,7 +656,7 @@ export default function VerifierEvidenceReview() {
                   max={100}
                   step={0.1}
                   value={quality}
-                  onChange={(e) => setQuality(Number(e.target.value))}
+                  onChange={(e) => setQuality(e.target.value)}
                   placeholder="Enter quality score (0–100)"
                 />
                 <FormHelperText>
