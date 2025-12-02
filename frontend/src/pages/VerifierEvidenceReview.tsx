@@ -40,9 +40,11 @@ import {
   FormControl,
   FormLabel,
   FormHelperText,
-  Textarea
+  Textarea,
+  Progress,
+  Icon
 } from "@chakra-ui/react";
-import { CheckIcon, CloseIcon, ArrowBackIcon } from "@chakra-ui/icons";
+import { CheckIcon, CloseIcon, ArrowBackIcon, CheckCircleIcon } from "@chakra-ui/icons";
 
 type PendingRequest = {
   requestID: number;
@@ -95,6 +97,7 @@ export default function VerifierEvidenceReview() {
   const toast = useToast();
   const { isOpen: isApproveOpen, onOpen: onApproveOpen, onClose: onApproveClose } = useDisclosure();
   const { isOpen: isDenyOpen, onOpen: onDenyOpen, onClose: onDenyClose } = useDisclosure();
+  const { isOpen: isMintingOpen, onOpen: onMintingOpen, onClose: onMintingClose } = useDisclosure();
 
   const [request, setRequest] = useState<PendingRequest | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -152,9 +155,26 @@ export default function VerifierEvidenceReview() {
   const handleApprove = async () => {
     if (!request) return;
 
+    // Validate quality score before proceeding
+    if (!quality || isNaN(Number(quality)) || Number(quality) < 0 || Number(quality) > 100) {
+      toast({
+        title: "Invalid Quality Score",
+        description: "Please enter a quality score between 0 and 100.",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
     setActionLoading(true);
+    
+    // Close the approve modal and open the minting progress modal
+    onApproveClose();
+    onMintingOpen();
+
+    // Start the minting process in the background
     try {
-      // Update request status
       const updateResponse = await fetch(`${API}/pendingrequests/${request.requestID}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -165,37 +185,36 @@ export default function VerifierEvidenceReview() {
         }),
       });
 
-      if (!updateResponse.ok) throw new Error("Failed to approve request");
+      if (!updateResponse.ok) {
+        throw new Error("Failed to approve request");
+      }
 
-      // Approve all telemetry data
-      // for (const telemetry of telemetryData) {
-      //   await fetch(`${API}/telemetrydata/${telemetry.entryID}/approve`, {
-      //     method: "PUT",
-      //   });
-      // }
-
+      // Show success toast (will appear on home page)
       toast({
-        title: "Request Approved",
-        description: "The evidence package has been verified and the job has been minted.",
+        title: "Minting Complete!",
+        description: "The evidence package has been verified and the carbon credit token has been minted successfully.",
         status: "success",
-        duration: 5000,
+        duration: 6000,
         isClosable: true,
       });
 
-      // Navigate back to dashboard
-      setTimeout(() => navigate("/verifier"), 1500);
     } catch (err: any) {
+      // Show error toast (will appear on home page)
       toast({
-        title: "Error",
-        description: err.message || "Failed to approve request",
+        title: "Minting Error",
+        description: err.message || "Failed to complete the minting process. Please check the verifier dashboard.",
         status: "error",
-        duration: 3000,
+        duration: 6000,
         isClosable: true,
       });
     } finally {
       setActionLoading(false);
-      onApproveClose();
     }
+  };
+
+  const handleGoHome = () => {
+    onMintingClose();
+    navigate("/");
   };
 
   const handleDeny = async () => {
@@ -623,11 +642,11 @@ export default function VerifierEvidenceReview() {
       </VStack>
 
       {/* Approve Confirmation Modal */}
-      <Modal isOpen={isApproveOpen} onClose={onApproveClose}>
+      <Modal isOpen={isApproveOpen} onClose={onApproveClose} closeOnOverlayClick={!actionLoading}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Confirm Approval</ModalHeader>
-          <ModalCloseButton />
+          {!actionLoading && <ModalCloseButton />}
           <ModalBody>
             <VStack align="start" spacing={3}>
               <Text>
@@ -658,6 +677,7 @@ export default function VerifierEvidenceReview() {
                   value={quality}
                   onChange={(e) => setQuality(e.target.value)}
                   placeholder="Enter quality score (0–100)"
+                  isDisabled={actionLoading}
                 />
                 <FormHelperText>
                   Assign a quality score for the verified credits.
@@ -667,13 +687,16 @@ export default function VerifierEvidenceReview() {
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onApproveClose}>
-              Cancel
-            </Button>
+            {!actionLoading && (
+              <Button variant="ghost" mr={3} onClick={onApproveClose}>
+                Cancel
+              </Button>
+            )}
             <Button
               colorScheme="green"
               onClick={handleApprove}
               isLoading={actionLoading}
+              loadingText="Processing..."
             >
               Confirm Approval
             </Button>
@@ -681,12 +704,67 @@ export default function VerifierEvidenceReview() {
         </ModalContent>
       </Modal>
 
+      {/* Minting In Progress Modal */}
+      <Modal 
+        isOpen={isMintingOpen} 
+        onClose={onMintingClose} 
+        closeOnOverlayClick={false}
+        closeOnEsc={false}
+        isCentered
+      >
+        <ModalOverlay bg="blackAlpha.700" />
+        <ModalContent>
+          <ModalHeader textAlign="center">
+            <Icon as={CheckCircleIcon} w={12} h={12} color="green.500" mb={3} />
+            <Text>Approval Submitted!</Text>
+          </ModalHeader>
+          <ModalBody>
+            <VStack spacing={4} align="center" py={4}>
+              <Text textAlign="center" fontSize="lg">
+                Your approval has been submitted successfully.
+              </Text>
+              
+              <Box w="100%" p={4} bg="green.50" borderRadius="md" border="1px solid" borderColor="green.200">
+                <VStack spacing={2}>
+                  <HStack>
+                    <Spinner size="sm" color="green.500" />
+                    <Text fontWeight="medium" color="green.700">
+                      Minting carbon credits in the background...
+                    </Text>
+                  </HStack>
+                  <Text fontSize="sm" color="gray.600" textAlign="center">
+                    This process may take a few moments. You'll receive a notification when it's complete.
+                  </Text>
+                </VStack>
+              </Box>
+
+              <Alert status="info" borderRadius="md">
+                <AlertIcon />
+                <Text fontSize="sm">
+                  You can safely navigate away. The minting process will continue in the background.
+                </Text>
+              </Alert>
+            </VStack>
+          </ModalBody>
+          <ModalFooter justifyContent="center">
+            <Button 
+              colorScheme="green" 
+              size="lg"
+              onClick={handleGoHome}
+              leftIcon={<CheckIcon />}
+            >
+              Return to Home
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       {/* Deny Confirmation Modal */}
-      <Modal isOpen={isDenyOpen} onClose={onDenyClose}>
+      <Modal isOpen={isDenyOpen} onClose={onDenyClose} closeOnOverlayClick={!actionLoading}>
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Confirm Denial</ModalHeader>
-          <ModalCloseButton />
+          {!actionLoading && <ModalCloseButton />}
           <ModalBody>
             <VStack align="start" spacing={4}>
               <Text>
@@ -699,6 +777,7 @@ export default function VerifierEvidenceReview() {
                   onChange={(e) => setDenialReason(e.target.value)}
                   placeholder="Please provide a reason for denying this request..."
                   rows={4}
+                  isDisabled={actionLoading}
                 />
                 <FormHelperText>
                   This reason will be visible to the operator.
@@ -707,13 +786,16 @@ export default function VerifierEvidenceReview() {
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={() => { onDenyClose(); setDenialReason(""); }}>
-              Cancel
-            </Button>
+            {!actionLoading && (
+              <Button variant="ghost" mr={3} onClick={() => { onDenyClose(); setDenialReason(""); }}>
+                Cancel
+              </Button>
+            )}
             <Button
               colorScheme="red"
               onClick={handleDeny}
               isLoading={actionLoading}
+              loadingText="Processing..."
             >
               Confirm Denial
             </Button>
