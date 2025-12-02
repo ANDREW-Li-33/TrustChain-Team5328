@@ -49,7 +49,9 @@ import {
   Td,
   TableContainer,
   StatHelpText,
+  Icon,
 } from "@chakra-ui/react";
+import { CheckIcon, CheckCircleIcon } from "@chakra-ui/icons";
 
 type Token = {
   tokenID: number;
@@ -144,6 +146,10 @@ export default function CreditPortfolioPage() {
   const [isRetiringTokens, setIsRetiringTokens] = useState(false);
   const [tokensToRetire, setTokensToRetire] = useState<Token[]>([]);
   const [fetchingRetireTokens, setFetchingRetireTokens] = useState(false);
+
+  // Retirement progress modal state
+  const { isOpen: isRetireProgressOpen, onOpen: onRetireProgressOpen, onClose: onRetireProgressClose } = useDisclosure();
+  const [retiredTokenCount, setRetiredTokenCount] = useState(0);
 
   // Get unique operators for dropdown
   const uniqueOperators = useMemo(() => {
@@ -545,7 +551,15 @@ export default function CreditPortfolioPage() {
       return;
     }
 
+    // Store token count for the progress modal
+    const tokenCount = tokensToRetire.length;
+    setRetiredTokenCount(tokenCount);
+
     setIsRetiringTokens(true);
+
+    // Close retire modal and open progress modal
+    onRetireClose();
+    onRetireProgressOpen();
 
     try {
       const tokenIDs = tokensToRetire.map(token => token.tokenID);
@@ -567,33 +581,38 @@ export default function CreditPortfolioPage() {
       const result = await retireRes.json();
 
       toast({
-        title: "Tokens Retired",
-        description: result.message || `Successfully retired ${tokenIDs.length} token(s)`,
+        title: "Tokens Retired Successfully!",
+        description: result.message || `Successfully retired ${tokenIDs.length} token(s). These credits have been permanently removed from circulation.`,
         status: "success",
-        duration: 5000,
+        duration: 6000,
         isClosable: true,
       });
 
-      // Reset and close
+      // Reset state
       setSelectedGroupedToken(null);
       setRetireConfirmText("");
       setTokensToRetire([]);
-      onRetireClose();
 
-      // Refresh grouped tokens to reflect status changes
-      await fetchGroupedTokens();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to retire tokens",
+        title: "Retirement Error",
+        description: error.message || "Failed to retire tokens. Please check your portfolio.",
         status: "error",
-        duration: 5000,
+        duration: 6000,
         isClosable: true,
       });
       console.error("Error retiring tokens:", error);
     } finally {
       setIsRetiringTokens(false);
     }
+  };
+
+  // Handle returning to portfolio from progress modal
+  const handleReturnToPortfolio = async () => {
+    onRetireProgressClose();
+    // Refresh the data
+    setLoading(true);
+    await fetchGroupedTokens();
   };
 
   if (loading) {
@@ -1023,11 +1042,11 @@ export default function CreditPortfolioPage() {
 
       {/* Create listing modal (only for non-admin users) */}
       {!isAdmin && (
-        <Modal isOpen={isListingOpen} onClose={onListingClose} size="md">
+        <Modal isOpen={isListingOpen} onClose={onListingClose} size="md" closeOnOverlayClick={!isCreatingListing}>
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>List Credits for Sale</ModalHeader>
-            <ModalCloseButton />
+            {!isCreatingListing && <ModalCloseButton />}
             <ModalBody>
               <VStack spacing={4}>
                 {selectedGroupedToken && (
@@ -1063,7 +1082,7 @@ export default function CreditPortfolioPage() {
                           </Alert>
                         )}
 
-                        <FormControl isRequired isDisabled={availableTokens.length === 0}>
+                        <FormControl isRequired isDisabled={availableTokens.length === 0 || isCreatingListing}>
                           <FormLabel>Total Price ($)</FormLabel>
                           <Input
                             type="number"
@@ -1079,7 +1098,7 @@ export default function CreditPortfolioPage() {
                             </Text>
                           )}
                         </FormControl>
-                        <FormControl isRequired isDisabled={availableTokens.length === 0}>
+                        <FormControl isRequired isDisabled={availableTokens.length === 0 || isCreatingListing}>
                           <FormLabel>Confirmation</FormLabel>
                           <Input
                             placeholder='Type "CONFIRM" to put listing on marketplace'
@@ -1097,9 +1116,11 @@ export default function CreditPortfolioPage() {
             </ModalBody>
 
             <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onListingClose}>
-                Cancel
-              </Button>
+              {!isCreatingListing && (
+                <Button variant="ghost" mr={3} onClick={onListingClose}>
+                  Cancel
+                </Button>
+              )}
               <Button
                 colorScheme="green"
                 onClick={handleCreateListing}
@@ -1116,11 +1137,11 @@ export default function CreditPortfolioPage() {
 
       {/* Retire tokens modal (only for non-admin users) */}
       {!isAdmin && (
-        <Modal isOpen={isRetireOpen} onClose={onRetireClose} size="md">
+        <Modal isOpen={isRetireOpen} onClose={onRetireClose} size="md" closeOnOverlayClick={!isRetiringTokens}>
           <ModalOverlay />
           <ModalContent>
             <ModalHeader color="red.600">Retire Carbon Credits</ModalHeader>
-            <ModalCloseButton />
+            {!isRetiringTokens && <ModalCloseButton />}
             <ModalBody>
               <VStack spacing={4}>
                 {selectedGroupedToken && (
@@ -1167,7 +1188,7 @@ export default function CreditPortfolioPage() {
                           </Alert>
                         )}
 
-                        <FormControl isRequired isDisabled={tokensToRetire.length === 0}>
+                        <FormControl isRequired isDisabled={tokensToRetire.length === 0 || isRetiringTokens}>
                           <FormLabel>Confirmation</FormLabel>
                           <Input
                             placeholder='Type "CONFIRM" to retire these tokens'
@@ -1188,9 +1209,11 @@ export default function CreditPortfolioPage() {
             </ModalBody>
 
             <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={onRetireClose}>
-                Cancel
-              </Button>
+              {!isRetiringTokens && (
+                <Button variant="ghost" mr={3} onClick={onRetireClose}>
+                  Cancel
+                </Button>
+              )}
               <Button
                 colorScheme="red"
                 onClick={handleConfirmRetire}
@@ -1204,6 +1227,77 @@ export default function CreditPortfolioPage() {
           </ModalContent>
         </Modal>
       )}
+
+      {/* Retirement Progress Modal */}
+      <Modal 
+        isOpen={isRetireProgressOpen} 
+        onClose={onRetireProgressClose} 
+        closeOnOverlayClick={false}
+        closeOnEsc={false}
+        isCentered
+      >
+        <ModalOverlay bg="blackAlpha.700" />
+        <ModalContent>
+          <ModalHeader textAlign="center">
+            <Icon as={CheckCircleIcon} w={12} h={12} color="green.500" mb={3} />
+            <Text>Retirement Submitted!</Text>
+          </ModalHeader>
+          <ModalBody>
+            <VStack spacing={4} align="center" py={4}>
+              <Text textAlign="center" fontSize="lg">
+                Your retirement request has been submitted successfully.
+              </Text>
+              
+              <Box w="100%" p={4} bg="green.50" borderRadius="md" border="1px solid" borderColor="green.200">
+                <VStack spacing={2}>
+                  {isRetiringTokens ? (
+                    <>
+                      <HStack>
+                        <Spinner size="sm" color="green.500" />
+                        <Text fontWeight="medium" color="green.700">
+                          Retiring {retiredTokenCount} token(s) in the background...
+                        </Text>
+                      </HStack>
+                      <Text fontSize="sm" color="gray.600" textAlign="center">
+                        This process may take a few moments. You'll receive a notification when it's complete.
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <HStack>
+                        <Icon as={CheckIcon} color="green.500" />
+                        <Text fontWeight="medium" color="green.700">
+                          {retiredTokenCount} token(s) have been retired!
+                        </Text>
+                      </HStack>
+                      <Text fontSize="sm" color="gray.600" textAlign="center">
+                        These carbon credits have been permanently removed from circulation.
+                      </Text>
+                    </>
+                  )}
+                </VStack>
+              </Box>
+
+              <Alert status="info" borderRadius="md">
+                <AlertIcon />
+                <Text fontSize="sm">
+                  You can safely return to your portfolio. The retirement process will continue in the background if still processing.
+                </Text>
+              </Alert>
+            </VStack>
+          </ModalBody>
+          <ModalFooter justifyContent="center">
+            <Button 
+              colorScheme="green" 
+              size="lg"
+              onClick={handleReturnToPortfolio}
+              leftIcon={<CheckIcon />}
+            >
+              Return to Portfolio
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
