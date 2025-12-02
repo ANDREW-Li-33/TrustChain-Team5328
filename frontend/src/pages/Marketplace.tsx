@@ -43,7 +43,13 @@ import {
   Th,
   Td,
   TableContainer,
+  IconButton,
+  Code,
+  useClipboard,
+  Link,
+  Tooltip,
 } from "@chakra-ui/react";
+import { ExternalLinkIcon, CopyIcon, CheckIcon, CheckCircleIcon } from "@chakra-ui/icons";
 // Removed ViewIcon import as it is no longer needed
 
 type Listing = {
@@ -78,6 +84,55 @@ type UserRow = {
   organizationName?: string | null;
 };
 
+// Component for displaying transaction hash with copy and view on Etherscan
+function HashDisplayComponent({ hash }: { hash: string }) {
+  const toast = useToast();
+  const { hasCopied, onCopy } = useClipboard(hash);
+  const etherscanUrl = `https://sepolia.etherscan.io/tx/${hash}`;
+  
+  const truncatedHash = hash.length > 20 ? `${hash.slice(0, 10)}...${hash.slice(-8)}` : hash;
+  
+  const handleCopy = () => {
+    onCopy();
+    toast({
+      title: "Hash copied!",
+      status: "success",
+      duration: 2000,
+      isClosable: true,
+    });
+  };
+
+  return (
+    <HStack spacing={2} flexWrap="wrap">
+      <Code fontSize="sm" px={3} py={2} borderRadius="md" bg="white" color="gray.800" fontWeight="bold">
+        {truncatedHash}
+      </Code>
+      <Tooltip label="Copy transaction hash">
+        <IconButton
+          aria-label="Copy hash"
+          icon={hasCopied ? <CheckIcon /> : <CopyIcon />}
+          size="sm"
+          variant="outline"
+          onClick={handleCopy}
+          colorScheme={hasCopied ? "green" : "gray"}
+        />
+      </Tooltip>
+      <Tooltip label="View on Etherscan (Sepolia)">
+        <IconButton
+          aria-label="View on Etherscan"
+          icon={<ExternalLinkIcon />}
+          size="sm"
+          variant="outline"
+          colorScheme="blue"
+          as={Link}
+          href={etherscanUrl}
+          isExternal
+        />
+      </Tooltip>
+    </HStack>
+  );
+}
+
 export default function MarketplacePage() {
   const API =
     import.meta.env.VITE_API_BASE_URL ||
@@ -101,6 +156,14 @@ export default function MarketplacePage() {
   const { isOpen: isPurchaseOpen, onOpen: onPurchaseOpen, onClose: onPurchaseClose } = useDisclosure();
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
+
+  // Modal state for purchase success
+  const { isOpen: isSuccessOpen, onOpen: onSuccessOpen, onClose: onSuccessClose } = useDisclosure();
+  const [purchaseResult, setPurchaseResult] = useState<{
+    transactionHash: string;
+    tokensUpdated: number;
+    price: number;
+  } | null>(null);
 
   // Modal state for listing details
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
@@ -570,15 +633,29 @@ export default function MarketplacePage() {
 
       const result = await response.json();
 
-      toast({
-        title: "Purchase Successful",
-        description: `Successfully purchased ${result.tokensUpdated} token(s) for $${selectedListing.Price.toFixed(2)}`,
-        status: "success",
-        duration: 5000,
-        isClosable: true,
-      });
+      // Store purchase result with transaction hash
+      const transactionHash = result.listing?.transactionHash || result.transactionHash || null;
+      
+      if (transactionHash) {
+        setPurchaseResult({
+          transactionHash,
+          tokensUpdated: result.tokensUpdated,
+          price: selectedListing.Price,
+        });
+        onPurchaseClose();
+        onSuccessOpen();
+      } else {
+        // Fallback to toast if no transaction hash
+        toast({
+          title: "Purchase Successful",
+          description: `Successfully purchased ${result.tokensUpdated} token(s) for $${selectedListing.Price.toFixed(2)}`,
+          status: "success",
+          duration: 5000,
+          isClosable: true,
+        });
+        onPurchaseClose();
+      }
 
-      onPurchaseClose();
       setSelectedListing(null);
       await Promise.all([fetchListings(), fetchAllListingsForDropdown()]);
 
@@ -1242,6 +1319,55 @@ export default function MarketplacePage() {
               loadingText="Processing..."
             >
               Confirm Purchase
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Purchase Success Modal */}
+      <Modal isOpen={isSuccessOpen} onClose={onSuccessClose} isCentered size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            <HStack>
+              <CheckCircleIcon color="green.500" boxSize={6} />
+              <Text>Purchase Successful!</Text>
+            </HStack>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {purchaseResult && (
+              <VStack align="stretch" spacing={4}>
+                <Alert status="success" borderRadius="md">
+                  <AlertIcon />
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="bold">
+                      Successfully purchased {purchaseResult.tokensUpdated} token(s)
+                    </Text>
+                    <Text fontSize="sm">
+                      Total: ${purchaseResult.price.toFixed(2)}
+                    </Text>
+                  </VStack>
+                </Alert>
+
+                <Box p={4} bg="gray.50" borderRadius="md">
+                  <VStack align="stretch" spacing={3}>
+                    <Text fontWeight="bold" fontSize="sm" color="gray.700">
+                      Transaction Hash Receipt:
+                    </Text>
+                    <HashDisplayComponent hash={purchaseResult.transactionHash} />
+                    <Text fontSize="xs" color="gray.600" mt={2}>
+                      This transaction has been recorded on the Ethereum blockchain (Sepolia testnet). 
+                      You can view it on Etherscan using the link above or copy the hash for your records.
+                    </Text>
+                  </VStack>
+                </Box>
+              </VStack>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="green" onClick={onSuccessClose} width="100%">
+              Done
             </Button>
           </ModalFooter>
         </ModalContent>
