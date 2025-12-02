@@ -86,6 +86,9 @@ type Operator = {
   organizationName: string | null;
 };
 
+// Minting progress states
+type MintingState = 'idle' | 'processing' | 'complete' | 'queued' | 'error';
+
 export default function VerifierEvidenceReview() {
   const API =
     import.meta.env.VITE_API_BASE_URL ||
@@ -97,8 +100,7 @@ export default function VerifierEvidenceReview() {
   const toast = useToast();
   const { isOpen: isApproveOpen, onOpen: onApproveOpen, onClose: onApproveClose } = useDisclosure();
   const { isOpen: isDenyOpen, onOpen: onDenyOpen, onClose: onDenyClose } = useDisclosure();
-  const { isOpen: isMintingOpen, onOpen: onMintingOpen, onClose: onMintingClose } = useDisclosure();
-  const { isOpen: isQueuedOpen, onOpen: onQueuedOpen, onClose: onQueuedClose } = useDisclosure();
+  const { isOpen: isMintingModalOpen, onOpen: onMintingModalOpen, onClose: onMintingModalClose } = useDisclosure();
 
   const [request, setRequest] = useState<PendingRequest | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -109,6 +111,10 @@ export default function VerifierEvidenceReview() {
   const [error, setError] = useState<string | null>(null);
   const [quality, setQuality] = useState<string>("");
   const [denialReason, setDenialReason] = useState<string>("");
+  
+  // Minting progress state
+  const [mintingState, setMintingState] = useState<MintingState>('idle');
+  const [mintingError, setMintingError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEvidencePackage();
@@ -168,10 +174,13 @@ export default function VerifierEvidenceReview() {
       return;
     }
 
-    setActionLoading(true);
-    
     // Close the approve modal
     onApproveClose();
+    
+    // IMMEDIATELY show the minting progress modal
+    setMintingState('processing');
+    setMintingError(null);
+    onMintingModalOpen();
 
     try {
       const updateResponse = await fetch(`${API}/pendingrequests/${request.requestID}/status`, {
@@ -193,7 +202,7 @@ export default function VerifierEvidenceReview() {
       // Check if the request was queued (minting is paused) or processed immediately
       if (result.queued) {
         // Minting is paused - request is now On Hold
-        onQueuedOpen();
+        setMintingState('queued');
         toast({
           title: "Request Queued",
           description: "Minting is currently paused. The request has been set to 'On Hold' and will be processed automatically when minting resumes.",
@@ -202,8 +211,8 @@ export default function VerifierEvidenceReview() {
           isClosable: true,
         });
       } else {
-        // Minting happened immediately
-        onMintingOpen();
+        // Minting completed successfully
+        setMintingState('complete');
         toast({
           title: "Minting Complete!",
           description: "The evidence package has been verified and the carbon credit token has been minted successfully.",
@@ -214,6 +223,8 @@ export default function VerifierEvidenceReview() {
       }
 
     } catch (err: any) {
+      setMintingState('error');
+      setMintingError(err.message || "Failed to complete the approval process.");
       toast({
         title: "Error",
         description: err.message || "Failed to complete the approval process. Please check the verifier dashboard.",
@@ -221,14 +232,12 @@ export default function VerifierEvidenceReview() {
         duration: 6000,
         isClosable: true,
       });
-    } finally {
-      setActionLoading(false);
     }
   };
 
   const handleGoHome = () => {
-    onMintingClose();
-    onQueuedClose();
+    onMintingModalClose();
+    setMintingState('idle');
     navigate("/verifier");
   };
 
@@ -312,6 +321,191 @@ export default function VerifierEvidenceReview() {
       setActionLoading(false);
       onDenyClose();
       setDenialReason(""); // Reset denial reason after closing
+    }
+  };
+
+  // Render the minting modal content based on current state
+  const renderMintingModalContent = () => {
+    switch (mintingState) {
+      case 'processing':
+        return (
+          <>
+            <ModalBody>
+              <VStack spacing={4} align="center" py={4}>
+                <Text textAlign="center" fontSize="lg">
+                  Your approval has been confirmed. Tokens are now being minted on the blockchain.
+                </Text>
+                
+                <Box w="100%" p={4} bg="blue.50" borderRadius="md" border="1px solid" borderColor="blue.200">
+                  <VStack spacing={3}>
+                    <Text fontWeight="medium" color="blue.700">
+                      This process may take a moment...
+                    </Text>
+                    <Progress size="sm" isIndeterminate colorScheme="blue" w="100%" borderRadius="full" />
+                    <Text fontSize="sm" color="gray.600" textAlign="center">
+                      The blockchain transaction is being processed. You can wait here or return to the dashboard - the minting will complete in the background.
+                    </Text>
+                  </VStack>
+                </Box>
+
+                <Alert status="info" borderRadius="md">
+                  <AlertIcon />
+                  <Text fontSize="sm">
+                    Carbon credits are being recorded on the Ethereum blockchain for transparency and immutability.
+                  </Text>
+                </Alert>
+              </VStack>
+            </ModalBody>
+            <ModalFooter justifyContent="center">
+              <Button 
+                colorScheme="gray" 
+                variant="outline"
+                onClick={handleGoHome}
+                leftIcon={<ArrowBackIcon />}
+              >
+                Return to Dashboard
+              </Button>
+            </ModalFooter>
+          </>
+        );
+
+      case 'complete':
+        return (
+          <>
+            <ModalHeader textAlign="center">
+              <Icon as={CheckCircleIcon} w={12} h={12} color="green.500" mb={3} />
+              <Text>Minting Complete!</Text>
+            </ModalHeader>
+            <ModalBody>
+              <VStack spacing={4} align="center" py={4}>
+                <Text textAlign="center" fontSize="lg">
+                  The evidence package has been verified and the carbon credit token has been minted successfully.
+                </Text>
+                
+                <Box w="100%" p={4} bg="green.50" borderRadius="md" border="1px solid" borderColor="green.200">
+                  <VStack spacing={2}>
+                    <HStack>
+                      <Icon as={CheckCircleIcon} color="green.500" />
+                      <Text fontWeight="medium" color="green.700">
+                        Carbon credits have been minted!
+                      </Text>
+                    </HStack>
+                    <Text fontSize="sm" color="gray.600" textAlign="center">
+                      The tokens are now available in the operator's portfolio.
+                    </Text>
+                  </VStack>
+                </Box>
+              </VStack>
+            </ModalBody>
+            <ModalFooter justifyContent="center">
+              <Button 
+                colorScheme="green" 
+                size="lg"
+                onClick={handleGoHome}
+                leftIcon={<CheckIcon />}
+              >
+                Return to Dashboard
+              </Button>
+            </ModalFooter>
+          </>
+        );
+
+      case 'queued':
+        return (
+          <>
+            <ModalHeader textAlign="center">
+              <Icon as={TimeIcon} w={12} h={12} color="yellow.500" mb={3} />
+              <Text>Request Set to On Hold</Text>
+            </ModalHeader>
+            <ModalBody>
+              <VStack spacing={4} align="center" py={4}>
+                <Text textAlign="center" fontSize="lg">
+                  Your verification has been recorded, but minting is currently paused.
+                </Text>
+                
+                <Box w="100%" p={4} bg="yellow.50" borderRadius="md" border="1px solid" borderColor="yellow.200">
+                  <VStack spacing={2}>
+                    <HStack>
+                      <Icon as={TimeIcon} color="yellow.600" />
+                      <Text fontWeight="medium" color="yellow.700">
+                        Request is now "On Hold"
+                      </Text>
+                    </HStack>
+                    <Text fontSize="sm" color="gray.600" textAlign="center">
+                      The request will remain in the verifier dashboard with "On Hold" status. 
+                      When minting is resumed by an administrator, tokens will be minted automatically.
+                    </Text>
+                  </VStack>
+                </Box>
+
+                <Alert status="info" borderRadius="md">
+                  <AlertIcon />
+                  <Text fontSize="sm">
+                    No further action is needed. The system will process the request automatically when minting resumes.
+                  </Text>
+                </Alert>
+              </VStack>
+            </ModalBody>
+            <ModalFooter justifyContent="center">
+              <Button 
+                colorScheme="yellow" 
+                size="lg"
+                onClick={handleGoHome}
+                leftIcon={<ArrowBackIcon />}
+              >
+                Return to Dashboard
+              </Button>
+            </ModalFooter>
+          </>
+        );
+
+      case 'error':
+        return (
+          <>
+            <ModalHeader textAlign="center">
+              <Icon as={CloseIcon} w={10} h={10} color="red.500" mb={3} p={2} bg="red.100" borderRadius="full" />
+              <Text>Minting Failed</Text>
+            </ModalHeader>
+            <ModalBody>
+              <VStack spacing={4} align="center" py={4}>
+                <Text textAlign="center" fontSize="lg">
+                  There was an error processing the minting request.
+                </Text>
+                
+                <Box w="100%" p={4} bg="red.50" borderRadius="md" border="1px solid" borderColor="red.200">
+                  <VStack spacing={2}>
+                    <Text fontWeight="medium" color="red.700">
+                      Error Details:
+                    </Text>
+                    <Text fontSize="sm" color="gray.700" textAlign="center">
+                      {mintingError || "An unexpected error occurred. Please try again or contact support."}
+                    </Text>
+                  </VStack>
+                </Box>
+
+                <Alert status="warning" borderRadius="md">
+                  <AlertIcon />
+                  <Text fontSize="sm">
+                    Please check the verifier dashboard for the current status of the request.
+                  </Text>
+                </Alert>
+              </VStack>
+            </ModalBody>
+            <ModalFooter justifyContent="center">
+              <Button 
+                colorScheme="red" 
+                size="lg"
+                onClick={handleGoHome}
+                leftIcon={<ArrowBackIcon />}
+              >
+                Return to Dashboard
+              </Button>
+            </ModalFooter>
+          </>
+        );
+
+      default:
+        return null;
     }
   };
 
@@ -512,13 +706,10 @@ export default function VerifierEvidenceReview() {
           </Card>
         )}
 
-        {/* Telemetry Evidence */}
+        {/* Telemetry Data Section */}
         <Card>
           <CardHeader>
-            <Heading size="md">Telemetry Evidence ({telemetryData.length} records)</Heading>
-            <Text fontSize="sm" color="gray.600" mt={2}>
-              Review each telemetry data entry below. Expand to see raw metadata.
-            </Text>
+            <Heading size="md">Telemetry Data ({telemetryData.length} records)</Heading>
           </CardHeader>
           <CardBody>
             {telemetryData.length === 0 ? (
@@ -534,16 +725,11 @@ export default function VerifierEvidenceReview() {
                       <AccordionButton>
                         <Box flex="1" textAlign="left">
                           <HStack>
-                            <Badge colorScheme="blue">Entry #{data.entryID}</Badge>
-                            <Text fontWeight="bold">
-                              Record {index + 1} of {telemetryData.length}
+                            <Text fontWeight="bold">Entry #{data.entryID}</Text>
+                            <Text fontSize="sm" color="gray.500">
+                              {new Date(data.timeUploaded).toLocaleString()}
                             </Text>
-                            <Divider orientation="vertical" h="20px" />
-                            <Text fontSize="sm" color="gray.600">
-                              Uploaded: {new Date(data.timeUploaded).toLocaleString()}
-                            </Text>
-                            <Divider orientation="vertical" h="20px" />
-                            <Badge colorScheme={data.Approved ? "green" : "yellow"}>
+                            <Badge colorScheme={data.Approved ? "green" : "orange"}>
                               {data.Approved ? "Approved" : "Pending"}
                             </Badge>
                           </HStack>
@@ -719,107 +905,17 @@ export default function VerifierEvidenceReview() {
         </ModalContent>
       </Modal>
 
-      {/* Minting In Progress Modal */}
+      {/* Unified Minting Progress Modal - Shows different states */}
       <Modal 
-        isOpen={isMintingOpen} 
-        onClose={onMintingClose} 
-        closeOnOverlayClick={false}
-        closeOnEsc={false}
+        isOpen={isMintingModalOpen} 
+        onClose={mintingState === 'processing' ? undefined : onMintingModalClose}
+        closeOnOverlayClick={mintingState !== 'processing'}
+        closeOnEsc={mintingState !== 'processing'}
         isCentered
       >
         <ModalOverlay bg="blackAlpha.700" />
         <ModalContent>
-          <ModalHeader textAlign="center">
-            <Icon as={CheckCircleIcon} w={12} h={12} color="green.500" mb={3} />
-            <Text>Minting Complete!</Text>
-          </ModalHeader>
-          <ModalBody>
-            <VStack spacing={4} align="center" py={4}>
-              <Text textAlign="center" fontSize="lg">
-                The evidence package has been verified and the carbon credit token has been minted successfully.
-              </Text>
-              
-              <Box w="100%" p={4} bg="green.50" borderRadius="md" border="1px solid" borderColor="green.200">
-                <VStack spacing={2}>
-                  <HStack>
-                    <Icon as={CheckCircleIcon} color="green.500" />
-                    <Text fontWeight="medium" color="green.700">
-                      Carbon credits have been minted!
-                    </Text>
-                  </HStack>
-                  <Text fontSize="sm" color="gray.600" textAlign="center">
-                    The tokens are now available in the operator's portfolio.
-                  </Text>
-                </VStack>
-              </Box>
-            </VStack>
-          </ModalBody>
-          <ModalFooter justifyContent="center">
-            <Button 
-              colorScheme="green" 
-              size="lg"
-              onClick={handleGoHome}
-              leftIcon={<CheckIcon />}
-            >
-              Return to Dashboard
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Queued (On Hold) Modal - shown when minting is paused */}
-      <Modal 
-        isOpen={isQueuedOpen} 
-        onClose={onQueuedClose} 
-        closeOnOverlayClick={false}
-        closeOnEsc={false}
-        isCentered
-      >
-        <ModalOverlay bg="blackAlpha.700" />
-        <ModalContent>
-          <ModalHeader textAlign="center">
-            <Icon as={TimeIcon} w={12} h={12} color="yellow.500" mb={3} />
-            <Text>Request Set to On Hold</Text>
-          </ModalHeader>
-          <ModalBody>
-            <VStack spacing={4} align="center" py={4}>
-              <Text textAlign="center" fontSize="lg">
-                Your verification has been recorded, but minting is currently paused.
-              </Text>
-              
-              <Box w="100%" p={4} bg="yellow.50" borderRadius="md" border="1px solid" borderColor="yellow.200">
-                <VStack spacing={2}>
-                  <HStack>
-                    <Icon as={TimeIcon} color="yellow.600" />
-                    <Text fontWeight="medium" color="yellow.700">
-                      Request is now "On Hold"
-                    </Text>
-                  </HStack>
-                  <Text fontSize="sm" color="gray.600" textAlign="center">
-                    The request will remain in the verifier dashboard with "On Hold" status. 
-                    When minting is resumed by an administrator, tokens will be minted automatically.
-                  </Text>
-                </VStack>
-              </Box>
-
-              <Alert status="info" borderRadius="md">
-                <AlertIcon />
-                <Text fontSize="sm">
-                  No further action is needed. The system will process the request automatically when minting resumes.
-                </Text>
-              </Alert>
-            </VStack>
-          </ModalBody>
-          <ModalFooter justifyContent="center">
-            <Button 
-              colorScheme="yellow" 
-              size="lg"
-              onClick={handleGoHome}
-              leftIcon={<ArrowBackIcon />}
-            >
-              Return to Dashboard
-            </Button>
-          </ModalFooter>
+          {renderMintingModalContent()}
         </ModalContent>
       </Modal>
 
