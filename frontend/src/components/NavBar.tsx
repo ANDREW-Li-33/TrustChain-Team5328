@@ -49,11 +49,6 @@ type UserRow = {
 // Default links for operators
 const OperatorLinks = [
   {
-    name: "Operator",
-    path: "/operator",
-    icon: <AiFillMeh />,
-  },
-  {
     name: "Jobs",
     path: "/jobs",
     icon: <FaHandshake />,
@@ -258,7 +253,7 @@ export default function NavBar() {
                   ? "/tokens"
                   : isVerifier
                   ? "/verfier"
-                  : "/operator"
+                  : "/jobs"
               }
               fontSize="xl"
               fontWeight="bold"

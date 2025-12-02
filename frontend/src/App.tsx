@@ -1,6 +1,5 @@
 import { Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/Login";
-import OperatorDashboard from "./pages/OperatorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import VerifierDashboard from "./pages/VerifierDashboard";
 import VerifierEvidenceReview from "./pages/VerifierEvidenceReview";
@@ -31,22 +30,12 @@ function App() {
           <Protected>
             <RoleProtected allowedRoles={["operator", "slb admin"]}>
               <NavBar />
-              <OperatorDashboard />
+              <JobsPage />
             </RoleProtected>
           </Protected>
         }
       />
-      <Route
-        path="/operator"
-        element={
-          <Protected>
-            <RoleProtected allowedRoles={["operator", "slb admin"]}>
-              <NavBar />
-              <OperatorDashboard />
-            </RoleProtected>
-          </Protected>
-        }
-      />
+
       <Route
         path="/admin"
         element={

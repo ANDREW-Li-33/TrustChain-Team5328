@@ -113,7 +113,7 @@ export default function RegistrationPage() {
           if (role === "Operator") nav("/jobs");
           else if (role === "Verifier") nav("/verifier");
           else if (role === "Buyer") nav("/tokens");
-          else nav("/operator");
+          else nav("/jobs");
         }
       );
     } catch (e: any) {
