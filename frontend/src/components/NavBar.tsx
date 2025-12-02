@@ -17,6 +17,15 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { HamburgerIcon, CloseIcon } from "@chakra-ui/icons";
+import { AiFillMeh } from "react-icons/ai";
+import {
+  MdOutlinePendingActions,
+  MdDashboard,
+  MdAdminPanelSettings,
+} from "react-icons/md";
+import { BsStack } from "react-icons/bs";
+import { RiCopperCoinFill } from "react-icons/ri";
+import { FaShoppingBag, FaHistory, FaHandshake } from "react-icons/fa";
 import { app } from "../firebase/firebase";
 import { getAuth, signOut } from "firebase/auth";
 import { useNavigate, Link, useLocation } from "react-router-dom";
@@ -26,6 +35,7 @@ import { Context } from "../context/authContext";
 interface Props {
   children: React.ReactNode;
   path: string;
+  icon: React.ReactNode;
 }
 
 type UserRow = {
@@ -41,22 +51,27 @@ const OperatorLinks = [
   {
     name: "Operator",
     path: "/operator",
+    icon: <AiFillMeh />,
   },
   {
     name: "Jobs",
     path: "/jobs",
+    icon: <FaHandshake />,
   },
   {
     name: "Tokens",
     path: "/tokens",
+    icon: <RiCopperCoinFill />,
   },
   {
     name: "Marketplace",
     path: "/marketplace",
+    icon: <FaShoppingBag />,
   },
   {
     name: "User History",
     path: "/userhistory",
+    icon: <FaHistory />,
   },
 ];
 
@@ -65,14 +80,17 @@ const BuyerLinks = [
   {
     name: "Portfolio",
     path: "/tokens",
+    icon: <BsStack />,
   },
   {
     name: "Marketplace",
     path: "/marketplace",
+    icon: <FaShoppingBag />,
   },
   {
     name: "User History",
     path: "/userhistory",
+    icon: <FaHistory />,
   },
 ];
 
@@ -81,26 +99,32 @@ const AdminLinks = [
   {
     name: "Dashboard",
     path: "/admin",
+    icon: <MdDashboard />,
   },
   {
     name: "Pending Requests",
     path: "/verifier",
+    icon: <MdOutlinePendingActions />,
   },
   {
     name: "Jobs",
     path: "/jobs",
+    icon: <FaHandshake />,
   },
   {
     name: "Tokens",
     path: "/tokens",
+    icon: <RiCopperCoinFill />,
   },
   {
     name: "Marketplace",
     path: "/marketplace",
+    icon: <FaShoppingBag />,
   },
   {
     name: "Admin Actions",
     path: "/adminaction",
+    icon: <MdAdminPanelSettings />,
   },
 ];
 
@@ -108,16 +132,17 @@ const VerifierLinks = [
   {
     name: "Pending Requests",
     path: "/verifier",
+    icon: <MdOutlinePendingActions />,
   },
 ];
 
 const NavLink = (props: Props) => {
-  const { children, path } = props;
+  const { children, path, icon } = props;
   const location = useLocation();
   const isActive = location.pathname === path;
 
   return (
-    <Box
+    <Flex
       as={Link}
       to={path}
       px={2}
@@ -129,9 +154,11 @@ const NavLink = (props: Props) => {
         textDecoration: "none",
         bg: useColorModeValue("gray.200", "gray.700"),
       }}
+      align="center"
     >
       {children}
-    </Box>
+      <Box pl="5px">{icon}</Box>
+    </Flex>
   );
 };
 
@@ -269,7 +296,7 @@ export default function NavBar() {
               display={{ base: "none", md: "flex" }}
             >
               {links.map((link) => (
-                <NavLink key={link.name} path={link.path}>
+                <NavLink key={link.name} path={link.path} icon={link.icon}>
                   {link.name}
                 </NavLink>
               ))}
@@ -314,7 +341,7 @@ export default function NavBar() {
           <Box pb={4} display={{ md: "none" }}>
             <Stack as={"nav"} spacing={4}>
               {links.map((link) => (
-                <NavLink key={link.name} path={link.path}>
+                <NavLink key={link.name} path={link.path} icon={link.icon}>
                   {link.name}
                 </NavLink>
               ))}
