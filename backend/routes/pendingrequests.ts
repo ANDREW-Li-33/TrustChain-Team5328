@@ -104,6 +104,33 @@ router.put('/:id/status', async (req, res) => {
 
     if (!status) return res.status(400).json({ error: "Status is required" });
 
+    // Check minting status BEFORE updating to Approved
+    // If minting is paused, set status to 'On Hold' instead of 'Approved'
+    if (status === 'Approved') {
+      const mintingActive = await getMintingStatus();
+
+      if (!mintingActive) {
+        // Minting is paused - set status to 'On Hold' directly
+        const onHoldRequest = await updateRequestStatus(requestID, 'On Hold', verificationTimestamp);
+        
+        if (!onHoldRequest || onHoldRequest.length === 0) {
+          return res.status(500).json({ error: "Failed to update request to On Hold" });
+        }
+        
+        // Save the quality score for when minting resumes
+        await addSavedQuality(requestID, quality);
+        
+        const updatedRequest = Array.isArray(onHoldRequest) ? onHoldRequest[0] : onHoldRequest;
+        
+        return res.status(200).json({
+          message: "Minting is paused. Request set to On Hold and queued for automatic processing when minting resumes.",
+          data: updatedRequest,
+          queued: true,
+        });
+      }
+    }
+
+    // Normal flow - minting is active or status is not 'Approved'
     const updatedRequests = await updateRequestStatus(requestID, status, verificationTimestamp, denialReason);
     if (!updatedRequests || updatedRequests.length === 0) {
       // Check if this might be a database schema issue
@@ -119,22 +146,13 @@ router.put('/:id/status', async (req, res) => {
     const updatedRequest = Array.isArray(updatedRequests) ? updatedRequests[0] : updatedRequests;
 
     if (status === 'Approved') {
-      const mintingActive = await getMintingStatus();
-
-      if (!mintingActive) {
-        await queueRequestForMinting(requestID, quality, verificationTimestamp);
-        return res.status(200).json({
-          message: "Minting is paused. Request queued for automatic processing.",
-          data: updatedRequest,
-        });
-      }
-
+      // Minting is active - process immediately
       await processMintingRequest(requestID, verificationTimestamp, quality);
     }
 
     if (status === 'Denied') await updateJobStatus(updatedRequest.jobID, 'Denied');
 
-    res.status(200).json({ message: "Request updated successfully", data: updatedRequest });
+    res.status(200).json({ message: "Request updated successfully", data: updatedRequest, queued: false });
 
   } catch (error: any) {
     console.error("Error in PUT /pendingrequests/:id/status:", error);

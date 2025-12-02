@@ -363,7 +363,7 @@ export default function AdminActions() {
                   </Card>
 
                   {/* Transfer/Sale Control */}
-                  <Card variant="outline">
+                  {/* <Card variant="outline">
                     <CardBody>
                       <VStack spacing={4}>
                         <HStack justify="space-between" w="100%">
@@ -393,10 +393,10 @@ export default function AdminActions() {
                         </Button>
                       </VStack>
                     </CardBody>
-                  </Card>
+                  </Card> */}
 
                   {/* Retire Control */}
-                  <Card variant="outline">
+                  {/* <Card variant="outline">
                     <CardBody>
                       <VStack spacing={4}>
                         <HStack justify="space-between" w="100%">
@@ -426,7 +426,7 @@ export default function AdminActions() {
                         </Button>
                       </VStack>
                     </CardBody>
-                  </Card>
+                  </Card> */}
                 </SimpleGrid>
               </>
             )}
