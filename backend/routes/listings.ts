@@ -119,8 +119,10 @@ router.get('/quality-range', async (req, res) => {
 router.patch('/:listingID/status', async (req, res) => {
   const listingID = parseInt(req.params.listingID);
   const { newStatus } = req.body;
-  if (newStatus !== 'Active' && newStatus !== 'Inactive') {
-    return res.status(400).json({ error: 'Invalid status value' });
+  
+  // Only allow 'Active' or 'Complete' status - no 'Inactive' status exists
+  if (newStatus !== 'Active' && newStatus !== 'Complete') {
+    return res.status(400).json({ error: 'Invalid status value. Status must be "Active" or "Complete".' });
   }
 
   const updated = await changeListingStatus(listingID, newStatus);

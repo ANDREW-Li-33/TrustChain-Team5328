@@ -334,7 +334,7 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
     const tokenIDs = tokenLinks.map(t => t.tokenID);
     console.log('I got here as well');
 
-    // Step 2: Update each token’s owner and status
+    // Step 2: Update each token's owner and status
     const updatedTokens = [];
     const mintingHash = `Listing_${listingID}_SoldToUser_${newOwner}_FromUser_${oldOwner}_TheTokensSoldAre_${tokenIDs.join('_')}`;
     const transactionHash = await recordTokenOnChain(mintingHash);
@@ -390,33 +390,53 @@ export async function completeListing(listingID: number, newOwner: number, oldOw
 }
 
 export async function removeListing(listingID: number) {
-  const { data, error } = await supabase
-    .from('Listings')
-    .delete()
-    .eq('listingID', listingID)
-    .eq('Status', 'Active');
-
-    removeAllTokensFromListing(listingID);
-
-    const tokenIDs = await getTokensByListingID(listingID);
-
-    const { error: tokenUpdateError } = await supabase
-      .from('Tokens')
-      .update({ status: 'Active' })
-      .in('tokenID', tokenIDs?.map(t => t.tokenID) || []);
-
-    if (tokenUpdateError) {
-      console.error('Error updating token statuses during removal:', tokenUpdateError);
-    }
+  try {
+    // Step 1: Get all token IDs BEFORE deleting anything
+    const tokenLinks = await getTokensByListingID(listingID);
+    const tokenIDs = tokenLinks?.map(t => t.tokenID) || [];
     
+    console.log(`Removing listing ${listingID} with tokens: ${tokenIDs.join(', ')}`);
 
+    // Step 2: Update token statuses back to 'Minted' (before removing from join table)
+    if (tokenIDs.length > 0) {
+      const { error: tokenUpdateError } = await supabase
+        .from('Tokens')
+        .update({ status: 'Minted' })
+        .in('tokenID', tokenIDs);
 
-  if (error) {
-    console.error('Error removing listing:', error);
+      if (tokenUpdateError) {
+        console.error('Error updating token statuses during removal:', tokenUpdateError);
+        // Continue anyway - we still want to clean up the listing
+      } else {
+        console.log(`Updated ${tokenIDs.length} token(s) status back to 'Minted'`);
+      }
+    }
+
+    // Step 3: Remove tokens from the join table
+    const removeSuccess = await removeAllTokensFromListing(listingID);
+    if (!removeSuccess) {
+      console.error('Failed to remove tokens from listing join table');
+    }
+
+    // Step 4: Delete the listing itself (only if it's Active)
+    const { data, error } = await supabase
+      .from('Listings')
+      .delete()
+      .eq('listingID', listingID)
+      .eq('Status', 'Active')
+      .select();
+
+    if (error) {
+      console.error('Error removing listing:', error);
+      return null;
+    }
+
+    console.log(`✅ Successfully removed listing ${listingID}`);
+    return data;
+  } catch (err) {
+    console.error('Error in removeListing:', err);
     return null;
   }
-
-  return data;
 }
 
 export async function getListingsByDateRange(startDate: string | null, endDate: string | null) {
@@ -489,12 +509,15 @@ export async function getListingsByDateRange(startDate: string | null, endDate: 
 
   // Get all users to map seller info
   const { data: allUsers } = await supabase.from('Users').select('userID, email, organizationName, role');
+  
+  const normalizeDate = (listing: any): string => {
+    return listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString();
+  };
 
-  // Enrich listings with quality data
+  // Enhance each listing with seller info and token details
   const listingsWithDetails = await Promise.all(
     listings.map(async (listing: any) => {
       const seller = allUsers?.find((u: any) => u.userID === listing.sellerID);
-      const normalizedDate = listing.CreatedAt || listing.createdAt || listing.Timestamp || listing.timestamp || listing.created_at || new Date().toISOString();
       
       // Get tokens for this listing
       const { data: tokenLinks } = await supabase
@@ -502,36 +525,34 @@ export async function getListingsByDateRange(startDate: string | null, endDate: 
         .select('tokenID')
         .eq('listingID', listing.listingID);
 
-      if (!tokenLinks || tokenLinks.length === 0) {
-        return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
-      }
+      const tokenIDs = tokenLinks?.map((t: any) => t.tokenID) || [];
 
-      const tokenIDs = tokenLinks.map((t: any) => t.tokenID);
-      
-      const { data: tokens } = await supabase
-        .from('Tokens')
-        .select('tokenID, quality, creditProportion')
-        .in('tokenID', tokenIDs);
+      let minQuality = 0, maxQuality = 0, avgQuality = 0;
+      let tokenDetails: any[] = [];
 
-      if (!tokens || tokens.length === 0) {
-        return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
-      }
+      if (tokenIDs.length > 0) {
+        const { data: tokens } = await supabase
+          .from('Tokens')
+          .select('tokenID, quality, creditProportion')
+          .in('tokenID', tokenIDs);
 
-      const qualities = tokens.map((t: any) => t.quality || 0).filter((q: number) => q > 0);
-      if (qualities.length === 0) {
-        return { ...listing, CreatedAt: normalizedDate, seller: seller || null, tokens: [], minQuality: 0, maxQuality: 0, avgQuality: 0 };
+        if (tokens && tokens.length > 0) {
+          tokenDetails = tokens;
+          const qualities = tokens.map((t: any) => t.quality || 0).filter((q: number) => q > 0);
+          if (qualities.length > 0) {
+            minQuality = Math.min(...qualities);
+            maxQuality = Math.max(...qualities);
+            avgQuality = qualities.reduce((sum: number, q: number) => sum + q, 0) / qualities.length;
+          }
+        }
       }
-      
-      const minQuality = Math.min(...qualities);
-      const maxQuality = Math.max(...qualities);
-      const avgQuality = qualities.reduce((sum: number, q: number) => sum + q, 0) / qualities.length;
 
       return {
         ...listing,
-        CreatedAt: normalizedDate,
+        CreatedAt: normalizeDate(listing),
         seller: seller || null,
-        tokens: tokens.map((t: any) => t.tokenID),
-        tokenDetails: tokens,
+        tokens: tokenIDs,
+        tokenDetails,
         minQuality,
         maxQuality,
         avgQuality,
@@ -541,15 +562,3 @@ export async function getListingsByDateRange(startDate: string | null, endDate: 
 
   return listingsWithDetails;
 }
-
-
-
-async function testConnection() {
-  const { data, error } = await supabase.from('Listings').select('*');
-  if (error) {
-    console.error('Supabase query error:', error);
-  } else {
-    console.log('Supabase Listing Data:', data);
-  }
-}
-
