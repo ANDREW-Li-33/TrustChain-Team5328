@@ -47,7 +47,7 @@ import {
   Code,
 } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine } from 'recharts';
 
 interface TelemetryData {
   timestamp: string;
@@ -491,6 +491,15 @@ export default function TelemetryAnalysis() {
     }));
   };
 
+  const calculateAverage = (dataKey: 'power_kw' | 'flaring_m3' | 'TotalCO2Saved') => {
+    if (!telemetryData.length) return 0;
+    const values = telemetryData
+      .map((record) => record[dataKey] ?? 0)
+      .filter((val) => val > 0);
+    if (values.length === 0) return 0;
+    return values.reduce((sum, val) => sum + val, 0) / values.length;
+  };
+
   if (loading) {
     return (
       <Center h="50vh">
@@ -595,39 +604,72 @@ export default function TelemetryAnalysis() {
             </Heading>
             <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <Text fontWeight="bold" mb={4}>Power Consumption (kW)</Text>
+                <Text fontWeight="bold" mb={4}>
+                  Power Consumption (kW)
+                  <Text as="span" fontSize="sm" fontWeight="normal" color="gray.600" ml={2}>
+                    (Avg: {calculateAverage('power_kw').toFixed(2)} kW)
+                  </Text>
+                </Text>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
+                    <ReferenceLine 
+                      y={calculateAverage('power_kw')} 
+                      stroke="#e53e3e" 
+                      strokeDasharray="5 5" 
+                      label={{ value: "Avg", position: "right", fill: "#e53e3e" }}
+                    />
                     <Line type="monotone" dataKey="power_kw" stroke="#3182ce" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               </Box>
 
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <Text fontWeight="bold" mb={4}>Flaring Volume (m³)</Text>
+                <Text fontWeight="bold" mb={4}>
+                  Flaring Volume (m³)
+                  <Text as="span" fontSize="sm" fontWeight="normal" color="gray.600" ml={2}>
+                    (Avg: {calculateAverage('flaring_m3').toFixed(2)} m³)
+                  </Text>
+                </Text>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
+                    <ReferenceLine 
+                      y={calculateAverage('flaring_m3')} 
+                      stroke="#3182ce" 
+                      strokeDasharray="5 5" 
+                      label={{ value: "Avg", position: "right", fill: "#3182ce" }}
+                    />
                     <Bar dataKey="flaring_m3" fill="#e53e3e" />
                   </BarChart>
                 </ResponsiveContainer>
               </Box>
 
               <Box p={4} bg={bgColor} borderRadius="lg" borderWidth="1px" borderColor={borderColor}>
-                <Text fontWeight="bold" mb={4}>Tons of CO2 Saved</Text>
+                <Text fontWeight="bold" mb={4}>
+                  Tons of CO2 Saved
+                  <Text as="span" fontSize="sm" fontWeight="normal" color="gray.600" ml={2}>
+                    (Avg: {calculateAverage('TotalCO2Saved').toFixed(2)} Tons)
+                  </Text>
+                </Text>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={processChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="timestamp" />
                     <YAxis />
                     <Tooltip />
+                    <ReferenceLine 
+                      y={calculateAverage('TotalCO2Saved')} 
+                      stroke="#e53e3e" 
+                      strokeDasharray="5 5" 
+                      label={{ value: "Avg", position: "right", fill: "#e53e3e" }}
+                    />
                     <Line type="monotone" dataKey="TotalCO2Saved" stroke="#38a169" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -811,9 +853,21 @@ export default function TelemetryAnalysis() {
           {jobStatus === 'Denied' && (
             <Alert status="error" variant="subtle" borderRadius="md" maxW="600px">
               <AlertIcon />
-              <Text fontWeight="bold">
-                This job has been denied
-              </Text>
+              <VStack align="start" spacing={2}>
+                <Text fontWeight="bold">
+                  This job has been denied
+                </Text>
+                {pendingRequestData && (pendingRequestData.denialReason || pendingRequestData.denial_reason) && (
+                  <Box mt={2} p={3} bg="red.50" borderRadius="md" borderLeft="4px solid" borderColor="red.500">
+                    <Text fontSize="sm" fontWeight="semibold" mb={1}>
+                      Reason for Denial:
+                    </Text>
+                    <Text fontSize="sm" color="gray.700">
+                      {pendingRequestData.denialReason || pendingRequestData.denial_reason}
+                    </Text>
+                  </Box>
+                )}
+              </VStack>
             </Alert>
           )}  
 

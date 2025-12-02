@@ -99,13 +99,23 @@ function calculateCO2Savings(telemetryData: any[]): number {
 // Update to mint job when verification is complete AND create token
 router.put('/:id/status', async (req, res) => {
   try {
-    const { status, verificationTimestamp, quality } = req.body;
+    const { status, verificationTimestamp, quality, denialReason } = req.body;
     const requestID = Number(req.params.id);
 
     if (!status) return res.status(400).json({ error: "Status is required" });
 
-    const updatedRequests = await updateRequestStatus(requestID, status, verificationTimestamp);
-    if (!updatedRequests || updatedRequests.length === 0) return res.status(500).json({ error: "Failed to update request" });
+    const updatedRequests = await updateRequestStatus(requestID, status, verificationTimestamp, denialReason);
+    if (!updatedRequests || updatedRequests.length === 0) {
+      // Check if this might be a database schema issue
+      if (status === 'Denied' && denialReason) {
+        return res.status(500).json({ 
+          error: "Failed to update request. The denialReason column may not exist in the database.",
+          details: "Please run the migration SQL: ALTER TABLE \"PendingRequests\" ADD COLUMN IF NOT EXISTS \"denialReason\" TEXT;",
+          migrationFile: "backend/migrations/add_denial_reason_to_pending_requests.sql"
+        });
+      }
+      return res.status(500).json({ error: "Failed to update request" });
+    }
     const updatedRequest = Array.isArray(updatedRequests) ? updatedRequests[0] : updatedRequests;
 
     if (status === 'Approved') {
@@ -126,8 +136,16 @@ router.put('/:id/status', async (req, res) => {
 
     res.status(200).json({ message: "Request updated successfully", data: updatedRequest });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in PUT /pendingrequests/:id/status:", error);
+    // Provide more specific error message if it's a database schema issue
+    if (error.message && (error.message.includes("denialReason") || error.message.includes("column") || error.message.includes("does not exist"))) {
+      return res.status(500).json({ 
+        error: "Database schema error: denialReason column not found",
+        details: "Please run the migration SQL in your Supabase dashboard",
+        sql: "ALTER TABLE \"PendingRequests\" ADD COLUMN IF NOT EXISTS \"denialReason\" TEXT;"
+      });
+    }
     res.status(500).json({ error: "Internal server error" });
   }
 });

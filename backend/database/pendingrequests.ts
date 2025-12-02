@@ -48,11 +48,17 @@ export async function getRequests() {
 export async function updateRequestStatus(
   requestID: number,
   newStatus: "Pending review" | "On Hold" | "Approved" | "Denied",
-  verificationTimestamp?: string
+  verificationTimestamp?: string,
+  denialReason?: string
 ) {
   const updateData: any = { status: newStatus };
   if (verificationTimestamp) {
     updateData.verificationTimestamp = verificationTimestamp;
+  }
+  if (denialReason !== undefined && denialReason !== null && denialReason.trim() !== "") {
+    // Try camelCase first (Supabase default), fallback to snake_case if needed
+    // Note: You may need to run the migration SQL to add the denialReason column
+    updateData.denialReason = denialReason.trim();
   }
 
   const { data, error } = await supabase
@@ -63,6 +69,13 @@ export async function updateRequestStatus(
 
   if (error) {
     console.error("Error updating request status:", error);
+    // If error is about missing column, provide helpful message
+    if (error.message && (error.message.includes("denialReason") || error.message.includes("denial_reason") || error.message.includes("column") || error.message.includes("does not exist"))) {
+      console.error("ERROR: The denialReason column may not exist in the database.");
+      console.error("Please run the migration SQL from: backend/migrations/add_denial_reason_to_pending_requests.sql");
+      console.error("Or execute this SQL in your Supabase dashboard:");
+      console.error('ALTER TABLE "PendingRequests" ADD COLUMN IF NOT EXISTS "denialReason" TEXT;');
+    }
     return null;
   }
 

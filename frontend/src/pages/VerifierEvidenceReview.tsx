@@ -39,7 +39,8 @@ import {
   Input,
   FormControl,
   FormLabel,
-  FormHelperText
+  FormHelperText,
+  Textarea
 } from "@chakra-ui/react";
 import { CheckIcon, CloseIcon, ArrowBackIcon } from "@chakra-ui/icons";
 
@@ -50,6 +51,8 @@ type PendingRequest = {
   status: string;
   requestTimestamp: string;
   verificationTimestamp: string | null;
+  denialReason?: string;
+  denial_reason?: string;
   operator?: {
     userID: number;
     organizationName: string | null;
@@ -101,6 +104,7 @@ export default function VerifierEvidenceReview() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quality, setQuality] = useState<number>(0);
+  const [denialReason, setDenialReason] = useState<string>("");
 
   useEffect(() => {
     fetchEvidencePackage();
@@ -197,6 +201,17 @@ export default function VerifierEvidenceReview() {
   const handleDeny = async () => {
     if (!request) return;
 
+    if (!denialReason.trim()) {
+      toast({
+        title: "Denial reason required",
+        description: "Please provide a reason for denying this request.",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
     setActionLoading(true);
     try {
         const response = await fetch(`${API}/pendingrequests/${request.requestID}/status`, {
@@ -205,12 +220,22 @@ export default function VerifierEvidenceReview() {
             body: JSON.stringify({
                 status: "Denied",
                 verificationTimestamp: new Date().toISOString(),
+                denialReason: denialReason.trim(),
             }),
         });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || errorData.details || `HTTP ${response.status}: Failed to deny request`;
+        let errorMessage = errorData.error || errorData.details || `HTTP ${response.status}: Failed to deny request`;
+        
+        // Provide helpful message if it's a database schema issue
+        if (errorData.details || (errorData.error && errorData.error.includes("denialReason"))) {
+          errorMessage = errorData.details || errorData.error;
+          if (errorData.sql) {
+            errorMessage += `\n\nSQL to fix: ${errorData.sql}`;
+          }
+        }
+        
         throw new Error(errorMessage);
       }
 
@@ -226,16 +251,33 @@ export default function VerifierEvidenceReview() {
       setTimeout(() => navigate("/verifier"), 1500);
     } catch (err: any) {
       console.error("Error denying request:", err);
+      const errorMessage = err.message || "Failed to deny request. Please check the console for details.";
+      
+      // Check if it's a database schema issue
+      const isSchemaError = errorMessage.includes("denialReason") || errorMessage.includes("column") || errorMessage.includes("does not exist");
+      
       toast({
         title: "Error",
-        description: err.message || "Failed to deny request. Please check the console for details.",
+        description: isSchemaError 
+          ? "Database column missing. Please run the migration SQL in Supabase. See console for details."
+          : errorMessage,
         status: "error",
-        duration: 5000,
+        duration: isSchemaError ? 8000 : 5000,
         isClosable: true,
       });
+      
+      if (isSchemaError) {
+        console.error("=".repeat(50));
+        console.error("DATABASE MIGRATION REQUIRED:");
+        console.error("Run this SQL in your Supabase SQL Editor:");
+        console.error('ALTER TABLE "PendingRequests" ADD COLUMN IF NOT EXISTS "denialReason" TEXT;');
+        console.error("See: backend/migrations/QUICK_FIX_DENIAL_REASON.md for instructions");
+        console.error("=".repeat(50));
+      }
     } finally {
       setActionLoading(false);
       onDenyClose();
+      setDenialReason(""); // Reset denial reason after closing
     }
   };
 
@@ -646,12 +688,26 @@ export default function VerifierEvidenceReview() {
           <ModalHeader>Confirm Denial</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <Text>
-              Are you sure you want to deny this evidence package? This action cannot be undone.
-            </Text>
+            <VStack align="start" spacing={4}>
+              <Text>
+                Are you sure you want to deny this evidence package? This action cannot be undone.
+              </Text>
+              <FormControl isRequired>
+                <FormLabel>Reason for Denial</FormLabel>
+                <Textarea
+                  value={denialReason}
+                  onChange={(e) => setDenialReason(e.target.value)}
+                  placeholder="Please provide a reason for denying this request..."
+                  rows={4}
+                />
+                <FormHelperText>
+                  This reason will be visible to the operator.
+                </FormHelperText>
+              </FormControl>
+            </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onDenyClose}>
+            <Button variant="ghost" mr={3} onClick={() => { onDenyClose(); setDenialReason(""); }}>
               Cancel
             </Button>
             <Button
