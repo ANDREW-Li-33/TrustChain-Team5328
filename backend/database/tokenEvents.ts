@@ -31,10 +31,12 @@ export async function getUserHistory(userID: number) {
   if (role === "Operator") {
     const { data: jobs, error: jobsErr } = await supabase
       .from('Jobs')
-      .select('jobID')
-      .eq('operatorID', userID);
+      .select('jobID, jobTitle, status, dateCreated')
+      .eq('operatorID', userID)
+      .order('dateCreated', { ascending: false });
     if (jobsErr) console.error(jobsErr);
     history.jobsCreated = jobs ? jobs.length : 0;
+    history.jobs = jobs || [];
   }
 
   const { data: owned, error: ownedErr } = await supabase

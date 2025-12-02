@@ -456,8 +456,8 @@ export default function UserHistoryPage() {
               <>
                 <Alert status="info" mb={4} borderRadius="md">
                   <AlertIcon />
-                  <Box>
-                    <Text fontWeight="bold" mb={1}>About Transaction Hash Receipts</Text>
+                  <VStack align="start" spacing={2}>
+                    <Text fontWeight="bold">About Transaction Hash Receipts</Text>
                     <Text fontSize="sm">
                       Each transaction is recorded on the Ethereum blockchain (Sepolia testnet) for transparency and immutability. 
                       The transaction hash receipt is a unique identifier that proves your carbon credit transaction occurred. 
@@ -465,7 +465,7 @@ export default function UserHistoryPage() {
                       Blockchain ensures that all token transfers, minting, and retirements are permanently recorded and cannot be altered, 
                       providing trust and verification for carbon credit trading.
                     </Text>
-                  </Box>
+                  </VStack>
                 </Alert>
                 <TableContainer>
                   <Table variant="simple" size="sm">
