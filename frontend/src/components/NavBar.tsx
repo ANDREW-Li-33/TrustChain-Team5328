@@ -91,20 +91,16 @@ const BuyerLinks = [
 
 // SLB Admin specific links
 const AdminLinks = [
+
   {
-    name: "Dashboard",
-    path: "/admin",
-    icon: <MdDashboard />,
+    name: "Jobs",
+    path: "/jobs",
+    icon: <FaHandshake />,
   },
   {
     name: "Pending Requests",
     path: "/verifier",
     icon: <MdOutlinePendingActions />,
-  },
-  {
-    name: "Jobs",
-    path: "/jobs",
-    icon: <FaHandshake />,
   },
   {
     name: "Tokens",

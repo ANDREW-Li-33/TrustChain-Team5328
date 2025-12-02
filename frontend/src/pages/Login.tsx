@@ -66,7 +66,7 @@ export default function LoginPage() {
             console.log(role);
             if (role === "operator") nav("/jobs");
             else if (role === "verifier") nav("/verifier");
-            else if (role === "slb admin") nav("/admin");
+            else if (role === "slb admin") nav("/jobs");
             else if (role === "buyer") nav("/tokens");
             else nav("/operator");
           } catch {
