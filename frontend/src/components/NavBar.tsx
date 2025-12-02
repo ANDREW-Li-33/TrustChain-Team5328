@@ -248,7 +248,7 @@ export default function NavBar() {
                   : isBuyer
                   ? "/tokens"
                   : isVerifier
-                  ? "/verfier"
+                  ? "/verifier"
                   : "/jobs"
               }
               fontSize="xl"

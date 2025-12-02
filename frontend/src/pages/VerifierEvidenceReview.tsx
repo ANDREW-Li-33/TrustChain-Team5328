@@ -214,7 +214,7 @@ export default function VerifierEvidenceReview() {
 
   const handleGoHome = () => {
     onMintingClose();
-    navigate("/");
+    navigate("/verifier");
   };
 
   const handleDeny = async () => {
