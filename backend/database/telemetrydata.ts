@@ -54,6 +54,19 @@ export async function approveTelemetryData(entryID: number) {
     return data
 }
 
+export async function approveTelemetryDataByJobID(jobID: number) {
+  const { data, error } = await supabase
+      .from('TelemetryData')
+      .update({ Approved: true })
+      .eq('jobID', jobID)
+      .select();
+  if (error) {
+      console.error('Error approving telemetry data by job ID:', error);
+      return null;
+  }
+  return data;
+}
+
 async function testConnection() {
   const { data, error } = await supabase.from('TelemetryData').select('*');
   if (error) {

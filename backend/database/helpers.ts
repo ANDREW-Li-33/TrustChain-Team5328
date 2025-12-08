@@ -1,11 +1,11 @@
 import { supabase} from '../supabaseClient';
 import { getOneRequest, updateRequestStatus, getSavedQuality, getPendingRequestsOnHold } from './pendingrequests';
 import { updateJobStatus, getJobByID } from './jobs';
-import { getTelemetryDataByJobID } from './telemetrydata';
 import { addToken } from './tokens';
 import { recordTokenOnChain } from '../blockchain/blockchain';
 import { mintTokenEvent } from './tokenEvents';
 import { addSavedQuality } from './pendingrequests';
+import { getTelemetryDataByJobID, approveTelemetryDataByJobID } from './telemetrydata';
 
 export async function processMintingRequest(requestID: number, verificationTimestamp: string, quality: number) {
   console.log(`\n=== Processing minting for request ${requestID} ===`);
@@ -34,6 +34,8 @@ export async function processMintingRequest(requestID: number, verificationTimes
   };
 
   await updateJobStatus(request.jobID, 'Minted');
+
+  await approveTelemetryDataByJobID(request.jobID);
 
   const numTokens = Math.floor(co2Saved);
   const fractionalToken = co2Saved - numTokens;

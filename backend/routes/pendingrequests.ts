@@ -4,6 +4,7 @@ import { updateJobStatus, getJobByID } from '../database/jobs';
 import { processMintingRequest, queueRequestForMinting } from '../database/helpers';
 import { getMintingStatus } from '../database/systemStatus';
 import { setMintingActive } from '../database/systemStatus';
+import { approveTelemetryDataByJobID } from '../database/telemetrydata';
 
 const router = express.Router();
 
@@ -148,6 +149,8 @@ router.put('/:id/status', async (req, res) => {
     if (status === 'Approved') {
       // Minting is active - process immediately
       await processMintingRequest(requestID, verificationTimestamp, quality);
+
+      
     }
 
     if (status === 'Denied') await updateJobStatus(updatedRequest.jobID, 'Denied');
