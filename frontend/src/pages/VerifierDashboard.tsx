@@ -33,10 +33,14 @@ import {
   CardHeader,
   CardBody,
   CardFooter,
+  Flex,
 } from "@chakra-ui/react";
 import { CheckIcon, CloseIcon } from "@chakra-ui/icons";
 import { getAuth, signOut } from "firebase/auth";
 import { app } from "../firebase/firebase";
+import { MdOutlinePendingActions } from "react-icons/md";
+import { RxCross1 } from "react-icons/rx";
+import { FaCheckCircle } from "react-icons/fa";
 
 type PendingRequest = {
   requestID: number;
@@ -152,11 +156,7 @@ export default function VerifierDashboard() {
       <VStack spacing={6} align="stretch">
         <HStack justify="space-between" align="center">
           <Heading size="lg">Verifier Dashboard</Heading>
-          <Button
-            colorScheme="red"
-            variant="outline"
-            onClick={handleSignOut}
-          >
+          <Button colorScheme="red" variant="outline" onClick={handleSignOut}>
             Sign Out
           </Button>
         </HStack>
@@ -269,7 +269,16 @@ export default function VerifierDashboard() {
                           : "yellow"
                       }
                     >
-                      {request.status}
+                      <Flex alignItems="center">
+                        <Box pr="0.5"> {request.status}</Box>
+                        {request.status === "Pending" ? (
+                          <MdOutlinePendingActions />
+                        ) : null}
+                        {request.status === "Denied" ? <RxCross1 /> : null}
+                        {request.status === "Approved" ? (
+                          <FaCheckCircle />
+                        ) : null}
+                      </Flex>
                     </Badge>
                   </HStack>
                 </CardHeader>
@@ -316,7 +325,6 @@ export default function VerifierDashboard() {
           </SimpleGrid>
         )}
       </VStack>
-
     </Container>
   );
 }
