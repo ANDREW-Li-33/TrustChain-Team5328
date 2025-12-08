@@ -28,8 +28,13 @@ import {
   Divider,
   Wrap,
   WrapItem,
+  Flex,
 } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
+import { FaCheckCircle } from "react-icons/fa";
+import { RxCross1 } from "react-icons/rx";
+import { CgLivePhoto } from "react-icons/cg";
+import { FaMintbit } from "react-icons/fa6";
 
 type Job = {
   jobID: number;
@@ -75,12 +80,14 @@ export default function JobsPage() {
 
   const [newJobToolID, setNewJobToolID] = useState("");
   const [newJobTitle, setNewJobTitle] = useState("");
-  const [newJobStatus, setNewJobStatus] = useState<"Active" | "Completed" | "Paused">("Active");
+  const [newJobStatus, setNewJobStatus] = useState<
+    "Active" | "Completed" | "Paused"
+  >("Active");
   const [creating, setCreating] = useState(false);
 
   // Determine if date filters are active
   const isDateFilterActive = dateAfter !== "" || dateBefore !== "";
-  
+
   // Determine if recency filter is active
   const isRecencyFilterActive = recencyFilter !== "all";
 
@@ -101,7 +108,10 @@ export default function JobsPage() {
       const me =
         allUsers.find((u) => String(u.firebaseUID) === String(user.uid)) ||
         allUsers.find(
-          (u) => u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()
+          (u) =>
+            u.email &&
+            user.email &&
+            u.email.toLowerCase() === user.email.toLowerCase()
         );
 
       if (!me) throw new Error("No matching user in the DB");
@@ -118,9 +128,10 @@ export default function JobsPage() {
       setIsAdmin(userRole === "slb admin" || userRole === "slb_admin");
 
       // Get jobs
-      const endpoint = userRole === "slb admin" 
-        ? `${API}/jobs`
-        : `${API}/jobs/operator/${operatorID}`;
+      const endpoint =
+        userRole === "slb admin"
+          ? `${API}/jobs`
+          : `${API}/jobs/operator/${operatorID}`;
 
       const jRes = await fetch(endpoint);
       if (!jRes.ok) throw new Error(`jobs fetch failed (${jRes.status})`);
@@ -183,24 +194,28 @@ export default function JobsPage() {
   };
 
   // Helper function to check if a date is within a date range
-  const isWithinDateRange = (dateString: string, after: string, before: string): boolean => {
+  const isWithinDateRange = (
+    dateString: string,
+    after: string,
+    before: string
+  ): boolean => {
     if (!after && !before) return true;
-    
+
     const date = new Date(dateString);
     date.setHours(0, 0, 0, 0);
-    
+
     if (after) {
       const afterDate = new Date(after);
       afterDate.setHours(0, 0, 0, 0);
       if (date < afterDate) return false;
     }
-    
+
     if (before) {
       const beforeDate = new Date(before);
       beforeDate.setHours(23, 59, 59, 999);
       if (date > beforeDate) return false;
     }
-    
+
     return true;
   };
 
@@ -209,17 +224,23 @@ export default function JobsPage() {
       jobs.filter((j) => {
         // Status filter
         const matchesStatus = status === "all" || j.status === status;
-        
+
         // Company filter (admin only)
         const operatorName = getOperatorName(j.operatorID);
-        const matchesCompany = !isAdmin || companyFilter === "all" || operatorName === companyFilter;
-        
+        const matchesCompany =
+          !isAdmin || companyFilter === "all" || operatorName === companyFilter;
+
         // Recency filter
-        const matchesRecency = isDateFilterActive || recencyFilter === "all" || isWithinRecency(j.dateCreated, recencyFilter);
-        
+        const matchesRecency =
+          isDateFilterActive ||
+          recencyFilter === "all" ||
+          isWithinRecency(j.dateCreated, recencyFilter);
+
         // Date range filter
-        const matchesDateRange = isRecencyFilterActive || isWithinDateRange(j.dateCreated, dateAfter, dateBefore);
-        
+        const matchesDateRange =
+          isRecencyFilterActive ||
+          isWithinDateRange(j.dateCreated, dateAfter, dateBefore);
+
         // Search query filter
         const matchesQ =
           !q ||
@@ -228,10 +249,28 @@ export default function JobsPage() {
           operatorName.toLowerCase().includes(q.toLowerCase()) ||
           String(j.operatorID ?? "").includes(q) ||
           String(j.toolID).includes(q);
-        
-        return matchesStatus && matchesCompany && matchesRecency && matchesDateRange && matchesQ;
+
+        return (
+          matchesStatus &&
+          matchesCompany &&
+          matchesRecency &&
+          matchesDateRange &&
+          matchesQ
+        );
       }),
-    [jobs, q, status, recencyFilter, dateAfter, dateBefore, companyFilter, users, isAdmin, isDateFilterActive, isRecencyFilterActive]
+    [
+      jobs,
+      q,
+      status,
+      recencyFilter,
+      dateAfter,
+      dateBefore,
+      companyFilter,
+      users,
+      isAdmin,
+      isDateFilterActive,
+      isRecencyFilterActive,
+    ]
   );
 
   const handleCreateJob = async () => {
@@ -317,13 +356,20 @@ export default function JobsPage() {
   // Helper function to get display text for recency filter
   const getRecencyDisplayText = (recency: string): string => {
     switch (recency) {
-      case "today": return "Today";
-      case "3days": return "Last 3 days";
-      case "week": return "Last 7 days";
-      case "month": return "Last 30 days";
-      case "quarter": return "Last 90 days";
-      case "year": return "Last year";
-      default: return "";
+      case "today":
+        return "Today";
+      case "3days":
+        return "Last 3 days";
+      case "week":
+        return "Last 7 days";
+      case "month":
+        return "Last 30 days";
+      case "quarter":
+        return "Last 90 days";
+      case "year":
+        return "Last year";
+      default:
+        return "";
     }
   };
 
@@ -334,12 +380,14 @@ export default function JobsPage() {
 
   return (
     <Box p={6}>
-      
       <HStack justify="space-between" mb={4}>
         <HStack justify="space-between" mb={4}>
           <Heading size="lg">
-            Jobs {isAdmin && (
-              <Badge colorScheme="purple" fontSize="md" ml={2}>Admin View</Badge>
+            Jobs{" "}
+            {isAdmin && (
+              <Badge colorScheme="purple" fontSize="md" ml={2}>
+                Admin View
+              </Badge>
             )}
           </Heading>
         </HStack>
@@ -363,7 +411,7 @@ export default function JobsPage() {
               maxW="400px"
             />
           </WrapItem>
-          
+
           <WrapItem>
             <Select
               value={status}
@@ -378,7 +426,7 @@ export default function JobsPage() {
               <option value="Denied">Denied</option>
             </Select>
           </WrapItem>
-          
+
           <WrapItem>
             <Button onClick={handleResetFilters} variant="outline">
               Reset All Filters
@@ -393,12 +441,14 @@ export default function JobsPage() {
             <Text fontWeight="semibold" color="gray.600">
               Admin Filters
             </Text>
-            
+
             <Wrap spacing={3} align="center">
               {!isDateFilterActive && (
                 <WrapItem>
                   <FormControl>
-                    <FormLabel fontSize="sm" mb={1}>Recency</FormLabel>
+                    <FormLabel fontSize="sm" mb={1}>
+                      Recency
+                    </FormLabel>
                     <Select
                       value={recencyFilter}
                       onChange={(e) => setRecencyFilter(e.target.value)}
@@ -420,7 +470,9 @@ export default function JobsPage() {
                 <>
                   <WrapItem>
                     <FormControl>
-                      <FormLabel fontSize="sm" mb={1}>Created After Date</FormLabel>
+                      <FormLabel fontSize="sm" mb={1}>
+                        Created After Date
+                      </FormLabel>
                       <Input
                         type="date"
                         value={dateAfter}
@@ -432,7 +484,9 @@ export default function JobsPage() {
 
                   <WrapItem>
                     <FormControl>
-                      <FormLabel fontSize="sm" mb={1}>Created Before Date</FormLabel>
+                      <FormLabel fontSize="sm" mb={1}>
+                        Created Before Date
+                      </FormLabel>
                       <Input
                         type="date"
                         value={dateBefore}
@@ -446,7 +500,9 @@ export default function JobsPage() {
 
               <WrapItem>
                 <FormControl>
-                  <FormLabel fontSize="sm" mb={1}>Company</FormLabel>
+                  <FormLabel fontSize="sm" mb={1}>
+                    Company
+                  </FormLabel>
                   <Select
                     value={companyFilter}
                     onChange={(e) => setCompanyFilter(e.target.value)}
@@ -507,11 +563,15 @@ export default function JobsPage() {
           >
             <CardHeader>
               <HStack justify="space-between">
-                <Heading size="md">
-                  {j.jobTitle}
-                </Heading>
+                <Heading size="md">{j.jobTitle}</Heading>
                 <Badge colorScheme={getStatusColor(j.status)}>
-                  {j.status}
+                  <Flex alignItems="center">
+                    <Box pr="0.5">{j.status}</Box>
+                    {j.status === "Completed" ? <FaCheckCircle /> : null}
+                    {j.status === "Denied" ? <RxCross1 /> : null}
+                    {j.status === "Active" ? <CgLivePhoto /> : null}
+                    {j.status === "Minted" ? <FaMintbit /> : null}
+                  </Flex>
                 </Badge>
               </HStack>
             </CardHeader>
@@ -532,7 +592,8 @@ export default function JobsPage() {
                   <strong>Tool ID:</strong> {j.toolID}
                 </Text>
                 <Text>
-                  <strong>Created:</strong> {new Date(j.dateCreated).toLocaleString()}
+                  <strong>Created:</strong>{" "}
+                  {new Date(j.dateCreated).toLocaleString()}
                 </Text>
               </VStack>
             </CardBody>
