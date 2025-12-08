@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { Context } from "../context/authContext";
 import {
@@ -15,17 +15,8 @@ import {
   Spinner,
   Alert,
   AlertIcon,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
   Badge,
-  useDisclosure,
   useToast,
-  Divider,
   Stat,
   StatLabel,
   StatNumber,
@@ -35,7 +26,6 @@ import {
   CardFooter,
   Flex,
 } from "@chakra-ui/react";
-import { CheckIcon, CloseIcon } from "@chakra-ui/icons";
 import { getAuth, signOut } from "firebase/auth";
 import { app } from "../firebase/firebase";
 import { MdOutlinePendingActions } from "react-icons/md";
