@@ -209,7 +209,7 @@ export default function VerifierDashboard() {
             maxW="200px"
           >
             <option value="all">All Statuses</option>
-            <option value="Pending review">Pending</option>
+            <option value="Pending">Pending</option>
             <option value="On Hold">On Hold</option>
             <option value="Approved">Approved</option>
             <option value="Denied">Denied</option>
